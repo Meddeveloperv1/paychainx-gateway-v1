@@ -15,4 +15,26 @@ export const saleRequestSchema = z.object({
   description: z.string().optional()
 });
 
+export const captureRequestSchema = z.object({
+  payment_id: z.string().uuid(),
+  processor_transaction_id: z.string().min(1),
+  amount: z.number().int().positive(),
+  currency: z.string().length(3)
+});
+
+export const voidRequestSchema = z.object({
+  payment_id: z.string().uuid(),
+  processor_transaction_id: z.string().min(1)
+});
+
+export const refundRequestSchema = z.object({
+  payment_id: z.string().uuid(),
+  processor_transaction_id: z.string().min(1),
+  amount: z.number().int().positive(),
+  currency: z.string().length(3)
+});
+
 export type SaleRequest = z.infer<typeof saleRequestSchema>;
+export type CaptureRequest = z.infer<typeof captureRequestSchema>;
+export type VoidRequest = z.infer<typeof voidRequestSchema>;
+export type RefundRequest = z.infer<typeof refundRequestSchema>;

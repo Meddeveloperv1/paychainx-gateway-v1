@@ -7,10 +7,26 @@ export type NormalizedSaleInput = {
   description?: string;
 };
 
+export type NormalizedCaptureInput = {
+  processorTransactionId: string;
+  amount: number;
+  currency: string;
+};
+
+export type NormalizedVoidInput = {
+  processorTransactionId: string;
+};
+
+export type NormalizedRefundInput = {
+  processorTransactionId: string;
+  amount: number;
+  currency: string;
+};
+
 export type NormalizedPaymentResult = {
   processor: string;
   success: boolean;
-  status: 'authorized' | 'captured' | 'failed';
+  status: 'authorized' | 'captured' | 'voided' | 'refunded' | 'failed';
   processorTransactionId?: string;
   processorStatus?: string;
   responsePayload: unknown;
@@ -19,4 +35,7 @@ export type NormalizedPaymentResult = {
 
 export interface ProcessorAdapter {
   sale(input: NormalizedSaleInput): Promise<NormalizedPaymentResult>;
-};
+  capture(input: NormalizedCaptureInput): Promise<NormalizedPaymentResult>;
+  void(input: NormalizedVoidInput): Promise<NormalizedPaymentResult>;
+  refund(input: NormalizedRefundInput): Promise<NormalizedPaymentResult>;
+}

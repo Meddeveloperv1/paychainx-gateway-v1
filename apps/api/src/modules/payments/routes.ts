@@ -1,63 +1,41 @@
 import { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { idempotencyKeys } from '../../db/schema.js';
-import { saleRequestSchema } from './schemas.js';
-import { createSale } from './service.js';
+import {
+  saleRequestSchema,
+  captureRequestSchema,
+  voidRequestSchema,
+  refundRequestSchema
+} from './schemas.js';
+import {
+  createSale,
+  capturePayment,
+  voidPayment,
+  refundPayment
+} from './service.js';
 import { writeAuditEvent } from '../audit/service.js';
+
+async function completeIdempotency(app: FastifyInstance, request: any, result: unknown) {
+  const idemHeader = request.headers['idempotency-key'];
+  if (idemHeader && !Array.isArray(idemHeader) && request.auth?.merchantId) {
+    await app.db.update(idempotencyKeys)
+      .set({
+        status: 'completed',
+        responseCode: '200',
+        responseBody: JSON.stringify(result),
+        updatedAt: new Date()
+      })
+      .where(and(
+        eq(idempotencyKeys.merchantId, request.auth.merchantId),
+        eq(idempotencyKeys.idempotencyKey, idemHeader),
+        eq(idempotencyKeys.routeKey, `${request.method}:${request.routerPath ?? request.url}`)
+      ));
+  }
+}
 
 export async function paymentRoutes(app: FastifyInstance) {
   app.post('/payments/sale', {
-    preHandler: [
-      app.authenticate,
-      app.enforceIdempotency
-    ],
-    schema: {
-      tags: ['Payments'],
-      summary: 'Create a sale payment intent',
-      security: [{ apiKey: [] }],
-      body: {
-        type: 'object',
-        required: ['merchant_reference', 'amount', 'currency', 'payment_method'],
-        properties: {
-          merchant_reference: { type: 'string' },
-          amount: { type: 'integer' },
-          currency: { type: 'string' },
-          payment_method: {
-            type: 'object',
-            required: ['type', 'token_ref'],
-            properties: {
-              type: { type: 'string', enum: ['card_token'] },
-              token_ref: { type: 'string' }
-            }
-          },
-          customer: {
-            type: 'object',
-            properties: {
-              customer_ref: { type: 'string' },
-              email: { type: 'string' }
-            }
-          },
-          description: { type: 'string' }
-        }
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            merchant_reference: { type: 'string' },
-            status: { type: 'string' },
-            amount: { type: 'integer' },
-            currency: { type: 'string' },
-            processor: { type: 'string' },
-            processor_transaction_id: { type: ['string', 'null'] },
-            payment_attempt_id: { type: 'string' },
-            created_at: { type: 'string' },
-            error_message: { type: ['string', 'null'] }
-          }
-        }
-      }
-    }
+    preHandler: [app.authenticate, app.enforceIdempotency]
   }, async (request) => {
     const parsed = saleRequestSchema.parse(request.body);
 
@@ -81,22 +59,34 @@ export async function paymentRoutes(app: FastifyInstance) {
       payload: result
     });
 
-    const idemHeader = request.headers['idempotency-key'];
-    if (idemHeader && !Array.isArray(idemHeader) && request.auth?.merchantId) {
-      await app.db.update(idempotencyKeys)
-        .set({
-          status: 'completed',
-          responseCode: '200',
-          responseBody: JSON.stringify(result),
-          updatedAt: new Date()
-        })
-        .where(and(
-          eq(idempotencyKeys.merchantId, request.auth.merchantId),
-          eq(idempotencyKeys.idempotencyKey, idemHeader),
-          eq(idempotencyKeys.routeKey, `${request.method}:${request.routerPath ?? request.url}`)
-        ));
-    }
+    await completeIdempotency(app, request, result);
+    return result;
+  });
 
+  app.post('/payments/capture', {
+    preHandler: [app.authenticate, app.enforceIdempotency]
+  }, async (request) => {
+    const parsed = captureRequestSchema.parse(request.body);
+    const result = await capturePayment(request.auth!, parsed);
+    await completeIdempotency(app, request, result);
+    return result;
+  });
+
+  app.post('/payments/void', {
+    preHandler: [app.authenticate, app.enforceIdempotency]
+  }, async (request) => {
+    const parsed = voidRequestSchema.parse(request.body);
+    const result = await voidPayment(request.auth!, parsed);
+    await completeIdempotency(app, request, result);
+    return result;
+  });
+
+  app.post('/payments/refund', {
+    preHandler: [app.authenticate, app.enforceIdempotency]
+  }, async (request) => {
+    const parsed = refundRequestSchema.parse(request.body);
+    const result = await refundPayment(request.auth!, parsed);
+    await completeIdempotency(app, request, result);
     return result;
   });
 }

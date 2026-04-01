@@ -1,5 +1,12 @@
 import { cyberSourcePost } from './client.js';
-import type { ProcessorAdapter, NormalizedSaleInput, NormalizedPaymentResult } from '../processor.interface.js';
+import type {
+  ProcessorAdapter,
+  NormalizedSaleInput,
+  NormalizedCaptureInput,
+  NormalizedVoidInput,
+  NormalizedRefundInput,
+  NormalizedPaymentResult
+} from '../processor.interface.js';
 
 export class CyberSourceAdapter implements ProcessorAdapter {
   async sale(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
@@ -45,13 +52,139 @@ export class CyberSourceAdapter implements ProcessorAdapter {
         processorTransactionId: String((response.body as any).id ?? ''),
         processorStatus: String((response.body as any).status ?? 'ERROR'),
         responsePayload: response.body,
-        errorMessage: String((response.body as any).message ?? 'CyberSource request failed')
+        errorMessage: String((response.body as any).message ?? 'CyberSource sale failed')
       };
     } catch (err) {
       return {
         processor: 'cybersource',
         success: false,
         status: 'failed',
+        responsePayload: null,
+        errorMessage: err instanceof Error ? err.message : String(err)
+      };
+    }
+  }
+
+  async capture(input: NormalizedCaptureInput): Promise<NormalizedPaymentResult> {
+    const payload = {
+      orderInformation: {
+        amountDetails: {
+          totalAmount: (input.amount / 100).toFixed(2),
+          currency: input.currency
+        }
+      }
+    };
+
+    try {
+      const response = await cyberSourcePost(`/pts/v2/payments/${input.processorTransactionId}/captures`, payload);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          processor: 'cybersource',
+          success: true,
+          status: 'captured',
+          processorTransactionId: String((response.body as any).id ?? input.processorTransactionId),
+          processorStatus: String((response.body as any).status ?? 'PENDING'),
+          responsePayload: response.body
+        };
+      }
+
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: input.processorTransactionId,
+        processorStatus: String((response.body as any).status ?? 'ERROR'),
+        responsePayload: response.body,
+        errorMessage: String((response.body as any).message ?? 'CyberSource capture failed')
+      };
+    } catch (err) {
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: input.processorTransactionId,
+        responsePayload: null,
+        errorMessage: err instanceof Error ? err.message : String(err)
+      };
+    }
+  }
+
+  async void(input: NormalizedVoidInput): Promise<NormalizedPaymentResult> {
+    try {
+      const response = await cyberSourcePost(`/pts/v2/payments/${input.processorTransactionId}/voids`, {});
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          processor: 'cybersource',
+          success: true,
+          status: 'voided',
+          processorTransactionId: String((response.body as any).id ?? input.processorTransactionId),
+          processorStatus: String((response.body as any).status ?? 'PENDING'),
+          responsePayload: response.body
+        };
+      }
+
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: input.processorTransactionId,
+        processorStatus: String((response.body as any).status ?? 'ERROR'),
+        responsePayload: response.body,
+        errorMessage: String((response.body as any).message ?? 'CyberSource void failed')
+      };
+    } catch (err) {
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: input.processorTransactionId,
+        responsePayload: null,
+        errorMessage: err instanceof Error ? err.message : String(err)
+      };
+    }
+  }
+
+  async refund(input: NormalizedRefundInput): Promise<NormalizedPaymentResult> {
+    const payload = {
+      orderInformation: {
+        amountDetails: {
+          totalAmount: (input.amount / 100).toFixed(2),
+          currency: input.currency
+        }
+      }
+    };
+
+    try {
+      const response = await cyberSourcePost(`/pts/v2/payments/${input.processorTransactionId}/refunds`, payload);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          processor: 'cybersource',
+          success: true,
+          status: 'refunded',
+          processorTransactionId: String((response.body as any).id ?? input.processorTransactionId),
+          processorStatus: String((response.body as any).status ?? 'PENDING'),
+          responsePayload: response.body
+        };
+      }
+
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: input.processorTransactionId,
+        processorStatus: String((response.body as any).status ?? 'ERROR'),
+        responsePayload: response.body,
+        errorMessage: String((response.body as any).message ?? 'CyberSource refund failed')
+      };
+    } catch (err) {
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: input.processorTransactionId,
         responsePayload: null,
         errorMessage: err instanceof Error ? err.message : String(err)
       };
