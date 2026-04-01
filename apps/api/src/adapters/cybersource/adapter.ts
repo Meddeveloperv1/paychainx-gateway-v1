@@ -17,18 +17,34 @@ export class CyberSourceAdapter implements ProcessorAdapter {
       processingInformation: {
         capture: true
       },
-      paymentInformation: {
-        tokenizedCard: {
-          transientTokenJwt: input.tokenRef
-        }
+      tokenInformation: {
+        transientTokenJwt: input.tokenRef
       },
       orderInformation: {
         amountDetails: {
           totalAmount: (input.amount / 100).toFixed(2),
           currency: input.currency
+        },
+        billTo: input.customerEmail ? {
+          firstName: 'Test',
+          lastName: 'Buyer',
+          address1: '1 Market St',
+          locality: 'San Francisco',
+          administrativeArea: 'CA',
+          postalCode: '94105',
+          country: 'US',
+          email: input.customerEmail
+        } : {
+          firstName: 'Test',
+          lastName: 'Buyer',
+          address1: '1 Market St',
+          locality: 'San Francisco',
+          administrativeArea: 'CA',
+          postalCode: '94105',
+          country: 'US',
+          email: 'buyer@example.com'
         }
-      },
-      billTo: input.customerEmail ? { email: input.customerEmail } : undefined
+      }
     };
 
     try {
