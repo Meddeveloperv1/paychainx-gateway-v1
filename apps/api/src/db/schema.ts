@@ -90,6 +90,7 @@ export const paymentAttempts = pgTable('payment_attempts', {
   status: text('status').notNull().default('pending'),
   processorTransactionId: text('processor_transaction_id'),
   processorStatus: text('processor_status'),
+  processorHttpStatus: text('processor_http_status'),
   requestPayload: text('request_payload').notNull(),
   responsePayload: text('response_payload'),
   errorMessage: text('error_message'),

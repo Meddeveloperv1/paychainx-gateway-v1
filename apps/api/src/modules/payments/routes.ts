@@ -11,7 +11,9 @@ import {
   createSale,
   capturePayment,
   voidPayment,
-  refundPayment
+  refundPayment,
+  getPaymentById,
+  getPaymentAttempts
 } from './service.js';
 import { writeAuditEvent } from '../audit/service.js';
 
@@ -31,6 +33,32 @@ async function completeIdempotency(app: FastifyInstance, request: any, result: u
         eq(idempotencyKeys.routeKey, `${request.method}:${request.routerPath ?? request.url}`)
       ));
   }
+
+  app.get('/payments/:paymentId', {
+    preHandler: [app.authenticate]
+  }, async (request, reply) => {
+    const params = request.params as { paymentId: string };
+    const payment = await getPaymentById(params.paymentId);
+
+    if (!payment) {
+      return reply.code(404).send({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Payment not found'
+        }
+      });
+    }
+
+    return payment;
+  });
+
+  app.get('/payments/:paymentId/attempts', {
+    preHandler: [app.authenticate]
+  }, async (request) => {
+    const params = request.params as { paymentId: string };
+    return getPaymentAttempts(params.paymentId);
+  });
+
 }
 
 export async function paymentRoutes(app: FastifyInstance) {
@@ -89,4 +117,30 @@ export async function paymentRoutes(app: FastifyInstance) {
     await completeIdempotency(app, request, result);
     return result;
   });
+
+  app.get('/payments/:paymentId', {
+    preHandler: [app.authenticate]
+  }, async (request, reply) => {
+    const params = request.params as { paymentId: string };
+    const payment = await getPaymentById(params.paymentId);
+
+    if (!payment) {
+      return reply.code(404).send({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Payment not found'
+        }
+      });
+    }
+
+    return payment;
+  });
+
+  app.get('/payments/:paymentId/attempts', {
+    preHandler: [app.authenticate]
+  }, async (request) => {
+    const params = request.params as { paymentId: string };
+    return getPaymentAttempts(params.paymentId);
+  });
+
 }

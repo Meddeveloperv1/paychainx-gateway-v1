@@ -36,6 +36,7 @@ export async function cyberSourcePost(resourcePath: string, payload: unknown) {
 
   return {
     statusCode: res.statusCode,
+    requestPayload: payload,
     body: json
   };
 }

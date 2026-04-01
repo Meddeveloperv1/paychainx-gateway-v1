@@ -29,6 +29,7 @@ export type NormalizedPaymentResult = {
   status: 'authorized' | 'captured' | 'voided' | 'refunded' | 'failed';
   processorTransactionId?: string;
   processorStatus?: string;
+  processorHttpStatus?: number;
   responsePayload: unknown;
   errorMessage?: string;
 };

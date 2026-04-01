@@ -1,10 +1,22 @@
 import { db } from '../../db/client.js';
 import { paymentIntents, paymentAttempts } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { SaleRequest, CaptureRequest, VoidRequest, RefundRequest } from './schemas.js';
 import { CyberSourceAdapter } from '../../adapters/cybersource/adapter.js';
 
 const processor = new CyberSourceAdapter();
+
+export async function getPaymentById(paymentId: string) {
+  const rows = await db.select().from(paymentIntents).where(eq(paymentIntents.id, paymentId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getPaymentAttempts(paymentId: string) {
+  return db.select()
+    .from(paymentAttempts)
+    .where(eq(paymentAttempts.paymentIntentId, paymentId))
+    .orderBy(desc(paymentAttempts.createdAt));
+}
 
 export async function createSale(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: SaleRequest) {
   const insertedIntent = await db.insert(paymentIntents).values({
@@ -48,6 +60,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
       status: result.success ? 'succeeded' : 'failed',
       processorTransactionId: result.processorTransactionId,
       processorStatus: result.processorStatus,
+      processorHttpStatus: result.processorHttpStatus ? String(result.processorHttpStatus) : null,
       responsePayload: JSON.stringify(result.responsePayload),
       errorMessage: result.errorMessage,
       updatedAt: new Date()
@@ -98,6 +111,7 @@ export async function capturePayment(auth: NonNullable<import('fastify').Fastify
       status: result.success ? 'succeeded' : 'failed',
       processorTransactionId: result.processorTransactionId,
       processorStatus: result.processorStatus,
+      processorHttpStatus: result.processorHttpStatus ? String(result.processorHttpStatus) : null,
       responsePayload: JSON.stringify(result.responsePayload),
       errorMessage: result.errorMessage,
       updatedAt: new Date()
@@ -142,6 +156,7 @@ export async function voidPayment(auth: NonNullable<import('fastify').FastifyReq
       status: result.success ? 'succeeded' : 'failed',
       processorTransactionId: result.processorTransactionId,
       processorStatus: result.processorStatus,
+      processorHttpStatus: result.processorHttpStatus ? String(result.processorHttpStatus) : null,
       responsePayload: JSON.stringify(result.responsePayload),
       errorMessage: result.errorMessage,
       updatedAt: new Date()
@@ -188,6 +203,7 @@ export async function refundPayment(auth: NonNullable<import('fastify').FastifyR
       status: result.success ? 'succeeded' : 'failed',
       processorTransactionId: result.processorTransactionId,
       processorStatus: result.processorStatus,
+      processorHttpStatus: result.processorHttpStatus ? String(result.processorHttpStatus) : null,
       responsePayload: JSON.stringify(result.responsePayload),
       errorMessage: result.errorMessage,
       updatedAt: new Date()
