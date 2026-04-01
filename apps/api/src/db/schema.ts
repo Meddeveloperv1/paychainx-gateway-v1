@@ -96,3 +96,18 @@ export const paymentAttempts = pgTable('payment_attempts', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 });
+
+
+export const auditEvents = pgTable('audit_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  merchantId: uuid('merchant_id').references(() => merchants.id, { onDelete: 'set null' }),
+  requestId: text('request_id').notNull(),
+  route: text('route').notNull(),
+  httpMethod: text('http_method').notNull(),
+  eventType: text('event_type').notNull(),
+  payloadHash: text('payload_hash').notNull(),
+  previousHash: text('previous_hash'),
+  eventHash: text('event_hash').notNull(),
+  metadata: text('metadata'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+});

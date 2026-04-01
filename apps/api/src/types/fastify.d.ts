@@ -13,6 +13,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     db: typeof db;
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
+    enforceIdempotency: (request: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
   }
 
   interface FastifyRequest {

@@ -1,10 +1,16 @@
 import { FastifyInstance } from 'fastify';
+import { and, eq } from 'drizzle-orm';
+import { idempotencyKeys } from '../../db/schema.js';
 import { saleRequestSchema } from './schemas.js';
 import { createSale } from './service.js';
+import { writeAuditEvent } from '../audit/service.js';
 
 export async function paymentRoutes(app: FastifyInstance) {
   app.post('/payments/sale', {
-    preHandler: app.authenticate,
+    preHandler: [
+      app.authenticate,
+      app.enforceIdempotency
+    ],
     schema: {
       tags: ['Payments'],
       summary: 'Create a sale payment intent',
@@ -44,14 +50,53 @@ export async function paymentRoutes(app: FastifyInstance) {
             amount: { type: 'integer' },
             currency: { type: 'string' },
             processor: { type: 'string' },
+            processor_transaction_id: { type: ['string', 'null'] },
             payment_attempt_id: { type: 'string' },
-            created_at: { type: 'string' }
+            created_at: { type: 'string' },
+            error_message: { type: ['string', 'null'] }
           }
         }
       }
     }
   }, async (request) => {
     const parsed = saleRequestSchema.parse(request.body);
-    return createSale(request.auth!, parsed);
+
+    await writeAuditEvent({
+      merchantId: request.auth?.merchantId,
+      requestId: request.id,
+      route: request.url,
+      httpMethod: request.method,
+      eventType: 'payment.sale.requested',
+      payload: parsed
+    });
+
+    const result = await createSale(request.auth!, parsed);
+
+    await writeAuditEvent({
+      merchantId: request.auth?.merchantId,
+      requestId: request.id,
+      route: request.url,
+      httpMethod: request.method,
+      eventType: 'payment.sale.completed',
+      payload: result
+    });
+
+    const idemHeader = request.headers['idempotency-key'];
+    if (idemHeader && !Array.isArray(idemHeader) && request.auth?.merchantId) {
+      await app.db.update(idempotencyKeys)
+        .set({
+          status: 'completed',
+          responseCode: '200',
+          responseBody: JSON.stringify(result),
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(idempotencyKeys.merchantId, request.auth.merchantId),
+          eq(idempotencyKeys.idempotencyKey, idemHeader),
+          eq(idempotencyKeys.routeKey, `${request.method}:${request.routerPath ?? request.url}`)
+        ));
+    }
+
+    return result;
   });
 }
