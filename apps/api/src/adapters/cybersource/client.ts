@@ -32,7 +32,7 @@ export async function cyberSourcePost(resourcePath: string, payload: unknown) {
     }
   });
 
-  const json = await res.body.json();
+  const json = await res.body.json().catch(() => ({}));
 
   return {
     statusCode: res.statusCode,

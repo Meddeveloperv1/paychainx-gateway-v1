@@ -20,13 +20,13 @@ export function signCyberSourceRequest(params: {
   const digest = body ? createDigest(body) : undefined;
 
   const headers = body
-    ? '(request-target) host date digest v-c-merchant-id'
-    : '(request-target) host date v-c-merchant-id';
+    ? 'host date request-target digest v-c-merchant-id'
+    : 'host date request-target v-c-merchant-id';
 
   const signingLines = [
-    `(request-target): ${method.toLowerCase()} ${resourcePath}`,
     `host: ${host}`,
-    `date: ${date}`
+    `date: ${date}`,
+    `(request-target): ${method.toLowerCase()} ${resourcePath}`
   ];
 
   if (digest) signingLines.push(`digest: ${digest}`);

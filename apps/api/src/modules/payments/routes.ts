@@ -30,10 +30,12 @@ async function completeIdempotency(app: FastifyInstance, request: any, result: u
       .where(and(
         eq(idempotencyKeys.merchantId, request.auth.merchantId),
         eq(idempotencyKeys.idempotencyKey, idemHeader),
-        eq(idempotencyKeys.routeKey, `${request.method}:${request.routerPath ?? request.url}`)
+        eq(idempotencyKeys.routeKey, `${request.method}:${request.url}`)
       ));
   }
+}
 
+export async function paymentRoutes(app: FastifyInstance) {
   app.get('/payments/:paymentId', {
     preHandler: [app.authenticate]
   }, async (request, reply) => {
@@ -59,9 +61,6 @@ async function completeIdempotency(app: FastifyInstance, request: any, result: u
     return getPaymentAttempts(params.paymentId);
   });
 
-}
-
-export async function paymentRoutes(app: FastifyInstance) {
   app.post('/payments/sale', {
     preHandler: [app.authenticate, app.enforceIdempotency]
   }, async (request) => {
@@ -117,30 +116,4 @@ export async function paymentRoutes(app: FastifyInstance) {
     await completeIdempotency(app, request, result);
     return result;
   });
-
-  app.get('/payments/:paymentId', {
-    preHandler: [app.authenticate]
-  }, async (request, reply) => {
-    const params = request.params as { paymentId: string };
-    const payment = await getPaymentById(params.paymentId);
-
-    if (!payment) {
-      return reply.code(404).send({
-        error: {
-          code: 'NOT_FOUND',
-          message: 'Payment not found'
-        }
-      });
-    }
-
-    return payment;
-  });
-
-  app.get('/payments/:paymentId/attempts', {
-    preHandler: [app.authenticate]
-  }, async (request) => {
-    const params = request.params as { paymentId: string };
-    return getPaymentAttempts(params.paymentId);
-  });
-
 }

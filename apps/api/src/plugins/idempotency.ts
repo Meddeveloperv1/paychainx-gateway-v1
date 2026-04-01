@@ -6,7 +6,7 @@ import { sha256 } from '../lib/hash.js';
 
 export default fp(async (app) => {
   app.decorate('enforceIdempotency', async function (request, reply) {
-    const routeKey = `${request.method}:${request.routerPath ?? request.url}`;
+    const routeKey = `${request.method}:${request.url}`;
 
     if (!(request.method === 'POST' && request.url.startsWith('/v1/payments/'))) {
       return null;
