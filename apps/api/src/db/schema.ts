@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   boolean,
+  bigint,
   uniqueIndex
 } from 'drizzle-orm/pg-core';
 
@@ -62,3 +63,36 @@ export const idempotencyKeys = pgTable('idempotency_keys', {
     table.routeKey
   )
 }));
+
+export const paymentIntents = pgTable('payment_intents', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  merchantId: uuid('merchant_id').notNull().references(() => merchants.id, { onDelete: 'cascade' }),
+  merchantReference: text('merchant_reference').notNull(),
+  amount: bigint('amount', { mode: 'number' }).notNull(),
+  currency: text('currency').notNull(),
+  status: text('status').notNull().default('created'),
+  paymentMethodType: text('payment_method_type').notNull(),
+  paymentTokenRef: text('payment_token_ref').notNull(),
+  customerRef: text('customer_ref'),
+  customerEmail: text('customer_email'),
+  description: text('description'),
+  processor: text('processor').notNull().default('cybersource'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
+
+export const paymentAttempts = pgTable('payment_attempts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  paymentIntentId: uuid('payment_intent_id').notNull().references(() => paymentIntents.id, { onDelete: 'cascade' }),
+  merchantId: uuid('merchant_id').notNull().references(() => merchants.id, { onDelete: 'cascade' }),
+  action: text('action').notNull(),
+  processor: text('processor').notNull().default('cybersource'),
+  status: text('status').notNull().default('pending'),
+  processorTransactionId: text('processor_transaction_id'),
+  processorStatus: text('processor_status'),
+  requestPayload: text('request_payload').notNull(),
+  responsePayload: text('response_payload'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
