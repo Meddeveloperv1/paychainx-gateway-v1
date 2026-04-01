@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import dbPlugin from './plugins/db.js';
 import { healthRoutes } from './modules/health/routes.js';
 
 export async function buildApp() {
@@ -24,6 +25,7 @@ export async function buildApp() {
     routePrefix: '/docs'
   });
 
+  await app.register(dbPlugin);
   await app.register(healthRoutes, { prefix: '/v1' });
 
   return app;
