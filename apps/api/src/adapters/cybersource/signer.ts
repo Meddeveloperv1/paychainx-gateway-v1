@@ -20,8 +20,8 @@ export function signCyberSourceRequest(params: {
   const digest = body ? createDigest(body) : undefined;
 
   const headers = body
-    ? 'host date request-target digest v-c-merchant-id'
-    : 'host date request-target v-c-merchant-id';
+    ? 'host date (request-target) digest v-c-merchant-id'
+    : 'host date (request-target) v-c-merchant-id';
 
   const signingLines = [
     `host: ${host}`,
