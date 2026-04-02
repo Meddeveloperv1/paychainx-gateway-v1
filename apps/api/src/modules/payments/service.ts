@@ -25,8 +25,8 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     amount: input.amount,
     currency: input.currency,
     status: 'created',
-    paymentSourceType: input.payment_method.type,
-    paymentSourceToken: input.payment_method.token_ref,
+    paymentMethodType: input.payment_method.type,
+    paymentTokenRef: input.payment_method.token_ref,
     customerRef: input.customer?.customer_ref,
     customerEmail: input.customer?.email,
     processor: 'cybersource'

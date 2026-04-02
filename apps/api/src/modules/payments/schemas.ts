@@ -33,3 +33,9 @@ export const refundRequestSchema = z.object({
   amount: z.number().int().positive(),
   currency: z.string().length(3)
 });
+
+
+export type SaleRequest = z.infer<typeof saleRequestSchema>;
+export type CaptureRequest = z.infer<typeof captureRequestSchema>;
+export type VoidRequest = z.infer<typeof voidRequestSchema>;
+export type RefundRequest = z.infer<typeof refundRequestSchema>;
