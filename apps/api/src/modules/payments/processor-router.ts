@@ -1,38 +1,41 @@
 import { CyberSourceAdapter } from "../../adapters/cybersource/adapter.js";
+import { resolveCredentials } from "./credential-resolver.js";
 
 /**
- * Processor registry (expand here)
+ * Processor registry
  */
-function getProcessor(type: string) {
+function getProcessor(type: string, merchant?: any) {
+  const credentials = resolveCredentials(merchant);
+
   switch (type) {
-    case "cybersource":
-      return new CyberSourceAdapter();
+    case "cybersource": {
+      const adapter = new CyberSourceAdapter();
 
-    // 🔜 future rails
-    case "freedompay":
-    case "propelr":
-    case "zerohash":
-      throw new Error(`${type} not implemented yet`);
+      // 🔥 SAFE INJECTION (no constructor change)
+      (adapter as any).credentials = credentials;
 
-    default:
-      return new CyberSourceAdapter();
+      return adapter;
+    }
+
+    default: {
+      const adapter = new CyberSourceAdapter();
+      (adapter as any).credentials = credentials;
+      return adapter;
+    }
   }
 }
 
 /**
- * Resolve processor (multi-source routing)
+ * Resolve processor with credentials
  */
 export function resolveProcessor(preferred?: string, merchant?: any) {
-  // 1. explicit override (request-level)
   if (preferred) {
-    return getProcessor(preferred);
+    return getProcessor(preferred, merchant);
   }
 
-  // 2. merchant config (future DB)
   if (merchant?.processor) {
-    return getProcessor(merchant.processor);
+    return getProcessor(merchant.processor, merchant);
   }
 
-  // 3. default fallback
-  return getProcessor("cybersource");
+  return getProcessor("cybersource", merchant);
 }
