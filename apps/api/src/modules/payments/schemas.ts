@@ -1,42 +1,46 @@
-import { z } from 'zod';
+import { z } from "zod";
+
+export const paymentSourceSchema = z.object({
+  type: z.enum(["sandbox_card", "cybersource_transient_token"]),
+  token: z.string().optional(),
+  token_ref: z.string().optional()
+});
+
+export const routingSchema = z.object({
+  preferred_processor: z
+    .enum(["cybersource", "freedompay", "propelr", "zerohash"])
+    .optional()
+}).optional();
 
 export const saleRequestSchema = z.object({
+  merchant_id: z.string(),
   merchant_reference: z.string(),
   amount: z.number().int().positive(),
-  currency: z.string().length(3),
-  payment_source: z.object({
-    type: z.enum(['sandbox_card', 'cybersource_transient_token']),
-    token: z.string().nullable().optional()
-  }),
+  currency: z.string(),
+  payment_source: paymentSourceSchema,
+  routing: routingSchema.optional(),
   customer: z.object({
-    customer_ref: z.string(),
-    email: z.string().email()
-  }).optional(),
-  routing: z.object({
-    preferred_processor: z.enum(['cybersource']).optional()
+    customer_ref: z.string().optional(),
+    email: z.string().email().optional()
   }).optional()
 });
 
 export const captureRequestSchema = z.object({
-  payment_id: z.string().uuid(),
-  processor_transaction_id: z.string(),
-  amount: z.number().int().positive(),
-  currency: z.string().length(3)
+  merchant_id: z.string(),
+  payment_id: z.string(),
+  amount: z.number().int().positive().optional(),
+  routing: routingSchema.optional()
 });
 
 export const voidRequestSchema = z.object({
-  payment_id: z.string().uuid(),
-  processor_transaction_id: z.string()
+  merchant_id: z.string(),
+  payment_id: z.string(),
+  routing: routingSchema.optional()
 });
 
 export const refundRequestSchema = z.object({
-  payment_id: z.string().uuid(),
-  processor_transaction_id: z.string(),
-  amount: z.number().int().positive(),
-  currency: z.string().length(3)
+  merchant_id: z.string(),
+  payment_id: z.string(),
+  amount: z.number().int().positive().optional(),
+  routing: routingSchema.optional()
 });
-
-export type SaleRequest = z.infer<typeof saleRequestSchema>;
-export type CaptureRequest = z.infer<typeof captureRequestSchema>;
-export type VoidRequest = z.infer<typeof voidRequestSchema>;
-export type RefundRequest = z.infer<typeof refundRequestSchema>;
