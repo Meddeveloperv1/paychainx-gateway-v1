@@ -4,15 +4,17 @@ export const saleRequestSchema = z.object({
   merchant_reference: z.string(),
   amount: z.number().int().positive(),
   currency: z.string().length(3),
-  payment_method: z.object({
-    type: z.enum(['card_token']),
-    token_ref: z.string()
+  payment_source: z.object({
+    type: z.enum(['sandbox_card', 'cybersource_transient_token']),
+    token: z.string().nullable().optional()
   }),
   customer: z.object({
     customer_ref: z.string(),
     email: z.string().email()
   }).optional(),
-  description: z.string().optional()
+  routing: z.object({
+    preferred_processor: z.enum(['cybersource']).optional()
+  }).optional()
 });
 
 export const captureRequestSchema = z.object({
@@ -33,7 +35,6 @@ export const refundRequestSchema = z.object({
   amount: z.number().int().positive(),
   currency: z.string().length(3)
 });
-
 
 export type SaleRequest = z.infer<typeof saleRequestSchema>;
 export type CaptureRequest = z.infer<typeof captureRequestSchema>;

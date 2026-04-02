@@ -4,6 +4,7 @@ type NormalizedSaleInput = {
   merchantReference: string;
   amount: number;
   currency: string;
+  paymentSourceType: 'sandbox_card' | 'cybersource_transient_token';
   tokenRef: string;
   customerEmail?: string | null;
 };
@@ -66,13 +67,11 @@ export class CyberSourceAdapter {
   }
 
   async sale(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
-    const mode = this.getMode();
-
-    if (mode === 'sandbox_card') {
+    if (input.paymentSourceType === 'sandbox_card') {
       return this.saleSandboxCard(input);
     }
 
-    if (mode === 'transient_token') {
+    if (input.paymentSourceType === 'cybersource_transient_token') {
       return this.saleTransientToken(input);
     }
 
@@ -84,7 +83,7 @@ export class CyberSourceAdapter {
       processorStatus: 'ERROR',
       processorHttpStatus: null,
       responsePayload: null,
-      errorMessage: `Unsupported CYBERSOURCE_MODE: ${mode}`
+      errorMessage: `Unsupported payment source type: ${input.paymentSourceType}`
     };
   }
 
@@ -142,7 +141,12 @@ export class CyberSourceAdapter {
   }
 
   private async saleTransientToken(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
-    if (!input.tokenRef || input.tokenRef === 'ignore_for_now') {
+    const envToken = process.env.CYBERSOURCE_TEST_TRANSIENT_TOKEN || '';
+    const token = input.tokenRef && input.tokenRef !== 'ignore_for_now'
+      ? input.tokenRef
+      : envToken;
+
+    if (!token) {
       return {
         processor: 'cybersource',
         success: false,
@@ -155,6 +159,19 @@ export class CyberSourceAdapter {
       };
     }
 
+    if (!token.includes('.')) {
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: '',
+        processorStatus: 'ERROR',
+        processorHttpStatus: null,
+        responsePayload: null,
+        errorMessage: 'Invalid transient token format'
+      };
+    }
+
     const payload = {
       clientReferenceInformation: {
         code: input.merchantReference
@@ -163,7 +180,7 @@ export class CyberSourceAdapter {
         commerceIndicator: 'internet'
       },
       tokenInformation: {
-        transientTokenJwt: input.tokenRef
+        transientTokenJwt: token
       },
       orderInformation: {
         amountDetails: {
