@@ -62,6 +62,8 @@ function mapCyberSourceResult(
 }
 
 export class CyberSourceAdapter {
+  credentials: any;
+
   private getMode(): string {
     return process.env.CYBERSOURCE_MODE || 'sandbox_card';
   }
