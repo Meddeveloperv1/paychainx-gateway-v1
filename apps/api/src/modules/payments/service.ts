@@ -25,11 +25,10 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     amount: input.amount,
     currency: input.currency,
     status: 'created',
-    paymentMethodType: input.payment_method.type,
-    paymentTokenRef: input.payment_method.token_ref,
+    paymentSourceType: input.payment_method.type,
+    paymentSourceToken: input.payment_method.token_ref,
     customerRef: input.customer?.customer_ref,
     customerEmail: input.customer?.email,
-    description: input.description,
     processor: 'cybersource'
   }).returning();
 
@@ -51,8 +50,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     amount: input.amount,
     currency: input.currency,
     tokenRef: input.payment_method.token_ref,
-    customerEmail: input.customer?.email,
-    description: input.description
+    customerEmail: input.customer?.email
   });
 
   await db.update(paymentAttempts)
