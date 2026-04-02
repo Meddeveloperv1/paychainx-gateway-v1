@@ -142,6 +142,19 @@ export class CyberSourceAdapter {
   }
 
   private async saleTransientToken(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
+    if (!input.tokenRef || input.tokenRef === 'ignore_for_now') {
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: '',
+        processorStatus: 'ERROR',
+        processorHttpStatus: null,
+        responsePayload: null,
+        errorMessage: 'Missing transient token JWT'
+      };
+    }
+
     const payload = {
       clientReferenceInformation: {
         code: input.merchantReference
