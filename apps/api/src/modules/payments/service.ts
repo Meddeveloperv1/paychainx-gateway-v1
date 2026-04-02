@@ -1,10 +1,17 @@
+import { resolveMerchant } from "./merchant-resolver.js";
 import { resolveProcessor } from "./processor-router.js";
 
 /**
  * SALE
  */
 export async function createSale(auth: any, input: any) {
-  const processor = resolveProcessor(input.routing?.preferred_processor || input.payment_source?.type || "cybersource");
+  const merchant = resolveMerchant(input.merchant_id);
+  const processor = resolveProcessor(
+  input.routing?.preferred_processor ||
+  input.payment_source?.type ||
+  "cybersource",
+  merchant
+);
 
   return processor.sale({
     ...input,
@@ -16,7 +23,13 @@ export async function createSale(auth: any, input: any) {
  * CAPTURE
  */
 export async function capturePayment(auth: any, input: any) {
-  const processor = resolveProcessor(input.routing?.preferred_processor || input.payment_source?.type || "cybersource");
+  const merchant = resolveMerchant(input.merchant_id);
+  const processor = resolveProcessor(
+  input.routing?.preferred_processor ||
+  input.payment_source?.type ||
+  "cybersource",
+  merchant
+);
 
   return processor.capture({
     ...input,
@@ -28,7 +41,13 @@ export async function capturePayment(auth: any, input: any) {
  * VOID
  */
 export async function voidPayment(auth: any, input: any) {
-  const processor = resolveProcessor(input.routing?.preferred_processor || input.payment_source?.type || "cybersource");
+  const merchant = resolveMerchant(input.merchant_id);
+  const processor = resolveProcessor(
+  input.routing?.preferred_processor ||
+  input.payment_source?.type ||
+  "cybersource",
+  merchant
+);
 
   return processor.void({
     ...input,
@@ -40,7 +59,13 @@ export async function voidPayment(auth: any, input: any) {
  * REFUND
  */
 export async function refundPayment(auth: any, input: any) {
-  const processor = resolveProcessor(input.routing?.preferred_processor || input.payment_source?.type || "cybersource");
+  const merchant = resolveMerchant(input.merchant_id);
+  const processor = resolveProcessor(
+  input.routing?.preferred_processor ||
+  input.payment_source?.type ||
+  "cybersource",
+  merchant
+);
 
   return processor.refund({
     ...input,
