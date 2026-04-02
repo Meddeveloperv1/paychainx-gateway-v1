@@ -1,17 +1,37 @@
 export class FreedomPayAdapter {
+  credentials: any;
+
   async sale(input: any) {
-    throw new Error("FreedomPay not implemented");
+    // 🔥 placeholder for FreedomPay API call
+    return {
+      status: "authorized",
+      processor: "freedompay",
+      amount: input.amount,
+      message: "FreedomPay sale simulated"
+    };
   }
 
   async capture(input: any) {
-    throw new Error("FreedomPay not implemented");
+    return {
+      status: "captured",
+      processor: "freedompay",
+      message: "FreedomPay capture simulated"
+    };
   }
 
   async void(input: any) {
-    throw new Error("FreedomPay not implemented");
+    return {
+      status: "voided",
+      processor: "freedompay",
+      message: "FreedomPay void simulated"
+    };
   }
 
   async refund(input: any) {
-    throw new Error("FreedomPay not implemented");
+    return {
+      status: "refunded",
+      processor: "freedompay",
+      message: "FreedomPay refund simulated"
+    };
   }
 }
