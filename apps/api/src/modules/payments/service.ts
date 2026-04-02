@@ -6,7 +6,10 @@ import { wrapExecution } from "../security/quantum-wrapper.js";
  * SALE
  */
 export async function createSale(auth: any, input: any) {
-  const merchant = await resolveMerchant(input.merchant_id);
+  const merchant = await resolveMerchant(input.merchant_id, {
+    preferredProcessor: input.routing?.preferred_processor,
+    environment: input.routing?.environment
+  });
   const processor = resolveProcessor(
   input.routing?.preferred_processor ||
   input.payment_source?.type ||
@@ -31,7 +34,10 @@ export async function createSale(auth: any, input: any) {
  * CAPTURE
  */
 export async function capturePayment(auth: any, input: any) {
-  const merchant = await resolveMerchant(input.merchant_id);
+  const merchant = await resolveMerchant(input.merchant_id, {
+    preferredProcessor: input.routing?.preferred_processor,
+    environment: input.routing?.environment
+  });
   const processor = resolveProcessor(
   input.routing?.preferred_processor ||
   input.payment_source?.type ||
@@ -56,7 +62,10 @@ export async function capturePayment(auth: any, input: any) {
  * VOID
  */
 export async function voidPayment(auth: any, input: any) {
-  const merchant = await resolveMerchant(input.merchant_id);
+  const merchant = await resolveMerchant(input.merchant_id, {
+    preferredProcessor: input.routing?.preferred_processor,
+    environment: input.routing?.environment
+  });
   const processor = resolveProcessor(
   input.routing?.preferred_processor ||
   input.payment_source?.type ||
@@ -81,7 +90,10 @@ export async function voidPayment(auth: any, input: any) {
  * REFUND
  */
 export async function refundPayment(auth: any, input: any) {
-  const merchant = await resolveMerchant(input.merchant_id);
+  const merchant = await resolveMerchant(input.merchant_id, {
+    preferredProcessor: input.routing?.preferred_processor,
+    environment: input.routing?.environment
+  });
   const processor = resolveProcessor(
   input.routing?.preferred_processor ||
   input.payment_source?.type ||
