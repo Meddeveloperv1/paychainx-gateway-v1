@@ -1,5 +1,6 @@
 import { resolveMerchant } from "./merchant-resolver.js";
 import { resolveProcessor } from "./processor-router.js";
+import { wrapExecution } from "../security/quantum-wrapper.js";
 
 /**
  * SALE
@@ -13,10 +14,17 @@ export async function createSale(auth: any, input: any) {
   merchant
 );
 
-  return processor.sale({
+  const result = await processor.sale({
     ...input,
     auth
   });
+
+  const audit = wrapExecution({
+    ...input,
+    auth
+  }, result);
+
+  return { ...result, audit };
 }
 
 /**
@@ -31,10 +39,17 @@ export async function capturePayment(auth: any, input: any) {
   merchant
 );
 
-  return processor.capture({
+  const result = await processor.capture({
     ...input,
     auth
   });
+
+  const audit = wrapExecution({
+    ...input,
+    auth
+  }, result);
+
+  return { ...result, audit };
 }
 
 /**
@@ -49,10 +64,17 @@ export async function voidPayment(auth: any, input: any) {
   merchant
 );
 
-  return processor.void({
+  const result = await processor.void({
     ...input,
     auth
   });
+
+  const audit = wrapExecution({
+    ...input,
+    auth
+  }, result);
+
+  return { ...result, audit };
 }
 
 /**
@@ -67,10 +89,17 @@ export async function refundPayment(auth: any, input: any) {
   merchant
 );
 
-  return processor.refund({
+  const result = await processor.refund({
     ...input,
     auth
   });
+
+  const audit = wrapExecution({
+    ...input,
+    auth
+  }, result);
+
+  return { ...result, audit };
 }
 
 /**

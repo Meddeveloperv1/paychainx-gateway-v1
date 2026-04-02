@@ -1,41 +1,33 @@
 import { CyberSourceAdapter } from "../../adapters/cybersource/adapter.js";
-import { FreedomPayAdapter } from "../../adapters/freedompay/adapter.js";
-import { PropelrAdapter } from "../../adapters/propelr/adapter.js";
-import { ZeroHashAdapter } from "../../adapters/zerohash/adapter.js";
 import { resolveCredentials } from "./credential-resolver.js";
 
+/**
+ * Processor registry
+ */
 function getProcessor(type: string, merchant?: any) {
-  const credentials = resolveCredentials(merchant);
-
   let adapter: any;
 
   switch (type) {
-    case "cybersource":
+    case "propelr":
+      // 🔥 Propelr = CyberSource with merchant credentials
       adapter = new CyberSourceAdapter();
       break;
 
-    case "freedompay":
-      adapter = new FreedomPayAdapter();
-      break;
-
-    case "propelr":
-      adapter = new PropelrAdapter();
-      break;
-
-    case "zerohash":
-      adapter = new ZeroHashAdapter();
-      break;
-
+    case "cybersource":
     default:
       adapter = new CyberSourceAdapter();
   }
 
-  // inject credentials safely
+  // inject credentials (important)
+  const credentials = resolveCredentials(merchant);
   adapter.credentials = credentials;
 
   return adapter;
 }
 
+/**
+ * Resolve processor
+ */
 export function resolveProcessor(preferred?: string, merchant?: any) {
   if (preferred) {
     return getProcessor(preferred, merchant);
