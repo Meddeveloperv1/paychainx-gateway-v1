@@ -41,6 +41,6 @@ export function signCyberSourceRequest(params: {
 
   return {
     digest,
-    signatureHeader: `keyid="${keyId}", algorithm="HmacSHA256", headers="${headers}", signature="${signature}"`
+    signatureHeader: `keyid="${keyId}",algorithm="HmacSHA256",headers="${headers}",signature="${signature}"`
   };
 }

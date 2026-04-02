@@ -18,17 +18,25 @@ export async function cyberSourcePost(resourcePath: string, payload: unknown) {
     date
   });
 
+  console.log('\n--- CYBERSOURCE OUTBOUND REQUEST ---');
+  console.log('URL:', url.toString());
+  console.log('RESOURCE PATH:', resourcePath);
+  console.log('BODY:', body);
+  console.log('DATE:', date);
+  console.log('DIGEST:', digest);
+  console.log('SIGNATURE:', signatureHeader);
+
   const res = await request(url, {
     method: 'POST',
     body,
     headers: {
-      'content-type': 'application/json',
-      'accept': 'application/json',
-      'date': date,
-      'host': url.host,
       'v-c-merchant-id': env.CYBERSOURCE_MERCHANT_ID,
-      'digest': digest!,
-      'signature': signatureHeader
+      'Date': date,
+      'Host': url.host,
+      'Digest': digest!,
+      'Signature': signatureHeader,
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0'
     }
   });
 
@@ -40,6 +48,10 @@ export async function cyberSourcePost(resourcePath: string, payload: unknown) {
   } catch {
     parsedBody = { rawText };
   }
+
+  console.log('\n--- CYBERSOURCE RESPONSE ---');
+  console.log('STATUS:', res.statusCode);
+  console.log('RAW BODY:', rawText);
 
   return {
     statusCode: res.statusCode,

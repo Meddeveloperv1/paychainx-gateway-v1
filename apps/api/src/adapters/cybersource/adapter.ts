@@ -15,34 +15,32 @@ export class CyberSourceAdapter implements ProcessorAdapter {
         code: input.merchantReference
       },
       processingInformation: {
-        capture: true
-      },
-      tokenInformation: {
-        transientTokenJwt: input.tokenRef
+        commerceIndicator: 'internet'
       },
       orderInformation: {
+        billTo: {
+          firstName: 'Rick',
+          lastName: 'James',
+          address1: '245 Market St',
+          postalCode: '94105',
+          locality: 'san francisco',
+          administrativeArea: 'CA',
+          country: 'US',
+          phoneNumber: '4158880000',
+          company: 'Visa',
+          email: 'test@cybs.com'
+        },
         amountDetails: {
           totalAmount: (input.amount / 100).toFixed(2),
           currency: input.currency
-        },
-        billTo: input.customerEmail ? {
-          firstName: 'Test',
-          lastName: 'Buyer',
-          address1: '1 Market St',
-          locality: 'San Francisco',
-          administrativeArea: 'CA',
-          postalCode: '94105',
-          country: 'US',
-          email: input.customerEmail
-        } : {
-          firstName: 'Test',
-          lastName: 'Buyer',
-          address1: '1 Market St',
-          locality: 'San Francisco',
-          administrativeArea: 'CA',
-          postalCode: '94105',
-          country: 'US',
-          email: 'buyer@example.com'
+        }
+      },
+      paymentInformation: {
+        card: {
+          expirationYear: '2031',
+          number: '4111111111111111',
+          securityCode: '123',
+          expirationMonth: '12'
         }
       }
     };
@@ -55,8 +53,8 @@ export class CyberSourceAdapter implements ProcessorAdapter {
           processor: 'cybersource',
           success: true,
           status: 'captured',
-          processorTransactionId: String((response.body as any).id ?? ''),
-          processorStatus: String((response.body as any).status ?? 'AUTHORIZED'),
+          processorTransactionId: String((response.body as any)?.id ?? ''),
+          processorStatus: String((response.body as any)?.status ?? 'AUTHORIZED'),
           processorHttpStatus: response.statusCode,
           responsePayload: response.body
         };
@@ -66,11 +64,11 @@ export class CyberSourceAdapter implements ProcessorAdapter {
         processor: 'cybersource',
         success: false,
         status: 'failed',
-        processorTransactionId: String((response.body as any).id ?? ''),
-        processorStatus: String((response.body as any).status ?? 'ERROR'),
+        processorTransactionId: String((response.body as any)?.id ?? ''),
+        processorStatus: String((response.body as any)?.status ?? 'ERROR'),
         processorHttpStatus: response.statusCode,
         responsePayload: response.body,
-        errorMessage: String((response.body as any).message ?? 'CyberSource sale failed')
+        errorMessage: String((response.body as any)?.message ?? 'CyberSource sale failed')
       };
     } catch (err) {
       return {
@@ -101,8 +99,8 @@ export class CyberSourceAdapter implements ProcessorAdapter {
           processor: 'cybersource',
           success: true,
           status: 'captured',
-          processorTransactionId: String((response.body as any).id ?? input.processorTransactionId),
-          processorStatus: String((response.body as any).status ?? 'PENDING'),
+          processorTransactionId: String((response.body as any)?.id ?? input.processorTransactionId),
+          processorStatus: String((response.body as any)?.status ?? 'PENDING'),
           processorHttpStatus: response.statusCode,
           responsePayload: response.body
         };
@@ -113,10 +111,10 @@ export class CyberSourceAdapter implements ProcessorAdapter {
         success: false,
         status: 'failed',
         processorTransactionId: input.processorTransactionId,
-        processorStatus: String((response.body as any).status ?? 'ERROR'),
+        processorStatus: String((response.body as any)?.status ?? 'ERROR'),
         processorHttpStatus: response.statusCode,
         responsePayload: response.body,
-        errorMessage: String((response.body as any).message ?? 'CyberSource capture failed')
+        errorMessage: String((response.body as any)?.message ?? 'CyberSource capture failed')
       };
     } catch (err) {
       return {
@@ -139,8 +137,8 @@ export class CyberSourceAdapter implements ProcessorAdapter {
           processor: 'cybersource',
           success: true,
           status: 'voided',
-          processorTransactionId: String((response.body as any).id ?? input.processorTransactionId),
-          processorStatus: String((response.body as any).status ?? 'PENDING'),
+          processorTransactionId: String((response.body as any)?.id ?? input.processorTransactionId),
+          processorStatus: String((response.body as any)?.status ?? 'PENDING'),
           processorHttpStatus: response.statusCode,
           responsePayload: response.body
         };
@@ -151,10 +149,10 @@ export class CyberSourceAdapter implements ProcessorAdapter {
         success: false,
         status: 'failed',
         processorTransactionId: input.processorTransactionId,
-        processorStatus: String((response.body as any).status ?? 'ERROR'),
+        processorStatus: String((response.body as any)?.status ?? 'ERROR'),
         processorHttpStatus: response.statusCode,
         responsePayload: response.body,
-        errorMessage: String((response.body as any).message ?? 'CyberSource void failed')
+        errorMessage: String((response.body as any)?.message ?? 'CyberSource void failed')
       };
     } catch (err) {
       return {
@@ -186,8 +184,8 @@ export class CyberSourceAdapter implements ProcessorAdapter {
           processor: 'cybersource',
           success: true,
           status: 'refunded',
-          processorTransactionId: String((response.body as any).id ?? input.processorTransactionId),
-          processorStatus: String((response.body as any).status ?? 'PENDING'),
+          processorTransactionId: String((response.body as any)?.id ?? input.processorTransactionId),
+          processorStatus: String((response.body as any)?.status ?? 'PENDING'),
           processorHttpStatus: response.statusCode,
           responsePayload: response.body
         };
@@ -198,10 +196,10 @@ export class CyberSourceAdapter implements ProcessorAdapter {
         success: false,
         status: 'failed',
         processorTransactionId: input.processorTransactionId,
-        processorStatus: String((response.body as any).status ?? 'ERROR'),
+        processorStatus: String((response.body as any)?.status ?? 'ERROR'),
         processorHttpStatus: response.statusCode,
         responsePayload: response.body,
-        errorMessage: String((response.body as any).message ?? 'CyberSource refund failed')
+        errorMessage: String((response.body as any)?.message ?? 'CyberSource refund failed')
       };
     } catch (err) {
       return {
