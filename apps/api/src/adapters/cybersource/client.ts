@@ -18,13 +18,7 @@ export async function cyberSourcePost(resourcePath: string, payload: unknown) {
     date
   });
 
-  console.log('\n--- CYBERSOURCE OUTBOUND REQUEST ---');
-  console.log('URL:', url.toString());
-  console.log('RESOURCE PATH:', resourcePath);
-  console.log('BODY:', body);
-  console.log('DATE:', date);
-  console.log('DIGEST:', digest);
-  console.log('SIGNATURE:', signatureHeader);
+  const start = Date.now();
 
   const res = await request(url, {
     method: 'POST',
@@ -40,18 +34,23 @@ export async function cyberSourcePost(resourcePath: string, payload: unknown) {
     }
   });
 
+  const elapsedMs = Date.now() - start;
   const rawText = await res.body.text();
-  let parsedBody: unknown = null;
 
+  let parsedBody: unknown = null;
   try {
     parsedBody = rawText ? JSON.parse(rawText) : null;
   } catch {
     parsedBody = { rawText };
   }
 
-  console.log('\n--- CYBERSOURCE RESPONSE ---');
-  console.log('STATUS:', res.statusCode);
-  console.log('RAW BODY:', rawText);
+  console.log(JSON.stringify({
+    layer: 'cybersource',
+    method: 'POST',
+    resourcePath,
+    statusCode: res.statusCode,
+    elapsedMs
+  }));
 
   return {
     statusCode: res.statusCode,

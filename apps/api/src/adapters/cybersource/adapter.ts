@@ -49,15 +49,46 @@ function mapCyberSourceResult(
     success,
     status: success ? successStatus : 'failed',
     processorTransactionId: typeof body.id === 'string' ? body.id : '',
-    processorStatus: typeof body.status === 'string' ? body.status : (success ? successStatus.toUpperCase() : 'ERROR'),
+    processorStatus: typeof body.status === 'string'
+      ? body.status
+      : (success ? successStatus.toUpperCase() : 'ERROR'),
     processorHttpStatus: statusCode,
     responsePayload: response.body,
-    errorMessage: success ? null : (typeof body.message === 'string' ? body.message : failureMessage)
+    errorMessage: success
+      ? null
+      : (typeof body.message === 'string' ? body.message : failureMessage)
   };
 }
 
 export class CyberSourceAdapter {
+  private getMode(): string {
+    return process.env.CYBERSOURCE_MODE || 'sandbox_card';
+  }
+
   async sale(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
+    const mode = this.getMode();
+
+    if (mode === 'sandbox_card') {
+      return this.saleSandboxCard(input);
+    }
+
+    if (mode === 'transient_token') {
+      return this.saleTransientToken(input);
+    }
+
+    return {
+      processor: 'cybersource',
+      success: false,
+      status: 'failed',
+      processorTransactionId: '',
+      processorStatus: 'ERROR',
+      processorHttpStatus: null,
+      responsePayload: null,
+      errorMessage: `Unsupported CYBERSOURCE_MODE: ${mode}`
+    };
+  }
+
+  private async saleSandboxCard(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
     const payload = {
       clientReferenceInformation: {
         code: input.merchantReference
@@ -89,6 +120,52 @@ export class CyberSourceAdapter {
           number: '4111111111111111',
           securityCode: '123',
           expirationMonth: '12'
+        }
+      }
+    };
+
+    try {
+      const response = await cyberSourcePost('/pts/v2/payments', payload);
+      return mapCyberSourceResult(response, 'captured', 'CyberSource sale failed');
+    } catch (err) {
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: '',
+        processorStatus: 'ERROR',
+        processorHttpStatus: null,
+        responsePayload: null,
+        errorMessage: err instanceof Error ? err.message : String(err)
+      };
+    }
+  }
+
+  private async saleTransientToken(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
+    const payload = {
+      clientReferenceInformation: {
+        code: input.merchantReference
+      },
+      processingInformation: {
+        commerceIndicator: 'internet'
+      },
+      tokenInformation: {
+        transientTokenJwt: input.tokenRef
+      },
+      orderInformation: {
+        amountDetails: {
+          totalAmount: (input.amount / 100).toFixed(2),
+          currency: input.currency
+        },
+        billTo: {
+          firstName: 'Test',
+          lastName: 'User',
+          address1: '245 Market St',
+          postalCode: '94105',
+          locality: 'san francisco',
+          administrativeArea: 'CA',
+          country: 'US',
+          email: input.customerEmail || 'test@cybs.com'
         }
       }
     };
