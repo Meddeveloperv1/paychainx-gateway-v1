@@ -1,3 +1,4 @@
+import securityPlugin from "./plugins/security.js";
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -42,6 +43,7 @@ export async function buildApp() {
   });
 
   await app.register(dbPlugin);
+  await app.register(securityPlugin);
   await app.register(authPlugin);
   await app.register(idempotencyPlugin);
   await app.register(healthRoutes, { prefix: '/v1' });
