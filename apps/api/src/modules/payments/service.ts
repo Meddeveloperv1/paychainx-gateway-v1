@@ -1,5 +1,6 @@
 import { resolveMerchant } from "./merchant-resolver.js";
 import { resolveProcessor } from "./processor-router.js";
+import { normalizeResponse } from "./response-normalizer.js";
 import { wrapExecution } from "../security/quantum-wrapper.js";
 
 /**
@@ -27,7 +28,7 @@ export async function createSale(auth: any, input: any) {
     auth
   }, result);
 
-  return { ...result, audit };
+  return { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
 }
 
 /**
@@ -55,7 +56,7 @@ export async function capturePayment(auth: any, input: any) {
     auth
   }, result);
 
-  return { ...result, audit };
+  return { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
 }
 
 /**
@@ -83,7 +84,7 @@ export async function voidPayment(auth: any, input: any) {
     auth
   }, result);
 
-  return { ...result, audit };
+  return { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
 }
 
 /**
@@ -111,7 +112,7 @@ export async function refundPayment(auth: any, input: any) {
     auth
   }, result);
 
-  return { ...result, audit };
+  return { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
 }
 
 /**
