@@ -1,6 +1,7 @@
 import { resolveMerchant } from "./merchant-resolver.js";
 import { resolveProcessor } from "./processor-router.js";
 import { normalizeResponse } from "./response-normalizer.js";
+import { persistTransaction, listTransactions } from "./ledger.js";
 import { wrapExecution } from "../security/quantum-wrapper.js";
 
 /**
@@ -28,7 +29,24 @@ export async function createSale(auth: any, input: any) {
     auth
   }, result);
 
-  return { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
+  const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
+
+  await persistTransaction({
+    merchant_id: input.merchant_id,
+    merchant_reference: normalized.merchant_reference,
+    processor: normalized.processor,
+    status: normalized.status,
+    approved: normalized.approved,
+    amount: normalized.amount,
+    currency: normalized.currency,
+    transaction_id: normalized.transaction_id,
+    processor_reference: normalized.processor_reference,
+    message: normalized.message,
+    raw: normalized.raw,
+    audit: normalized.audit
+  });
+
+  return normalized;
 }
 
 /**
@@ -56,7 +74,24 @@ export async function capturePayment(auth: any, input: any) {
     auth
   }, result);
 
-  return { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
+  const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
+
+  await persistTransaction({
+    merchant_id: input.merchant_id,
+    merchant_reference: normalized.merchant_reference,
+    processor: normalized.processor,
+    status: normalized.status,
+    approved: normalized.approved,
+    amount: normalized.amount,
+    currency: normalized.currency,
+    transaction_id: normalized.transaction_id,
+    processor_reference: normalized.processor_reference,
+    message: normalized.message,
+    raw: normalized.raw,
+    audit: normalized.audit
+  });
+
+  return normalized;
 }
 
 /**
@@ -84,7 +119,24 @@ export async function voidPayment(auth: any, input: any) {
     auth
   }, result);
 
-  return { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
+  const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
+
+  await persistTransaction({
+    merchant_id: input.merchant_id,
+    merchant_reference: normalized.merchant_reference,
+    processor: normalized.processor,
+    status: normalized.status,
+    approved: normalized.approved,
+    amount: normalized.amount,
+    currency: normalized.currency,
+    transaction_id: normalized.transaction_id,
+    processor_reference: normalized.processor_reference,
+    message: normalized.message,
+    raw: normalized.raw,
+    audit: normalized.audit
+  });
+
+  return normalized;
 }
 
 /**
@@ -112,7 +164,24 @@ export async function refundPayment(auth: any, input: any) {
     auth
   }, result);
 
-  return { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
+  const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit };
+
+  await persistTransaction({
+    merchant_id: input.merchant_id,
+    merchant_reference: normalized.merchant_reference,
+    processor: normalized.processor,
+    status: normalized.status,
+    approved: normalized.approved,
+    amount: normalized.amount,
+    currency: normalized.currency,
+    transaction_id: normalized.transaction_id,
+    processor_reference: normalized.processor_reference,
+    message: normalized.message,
+    raw: normalized.raw,
+    audit: normalized.audit
+  });
+
+  return normalized;
 }
 
 /**
@@ -127,4 +196,8 @@ export async function getPaymentById(id: string) {
 
 export async function getPaymentAttempts(id: string) {
   return [];
+}
+
+export async function getTransactions(auth: any, merchantId?: string) {
+  return listTransactions(merchantId || auth?.merchantId);
 }
