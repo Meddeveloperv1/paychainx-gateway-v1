@@ -3,6 +3,7 @@ import { resolveProcessor } from "./processor-router.js";
 import { normalizeResponse } from "./response-normalizer.js";
 import { persistTransaction, listTransactions } from "./ledger.js";
 import { buildHybridAuditEnvelope } from "../pq/hybrid-audit.js";
+import { validatePqRequest } from "../pq/policy.js";
 import { wrapExecution } from "../security/quantum-wrapper.js";
 
 /**
@@ -30,7 +31,8 @@ export async function createSale(auth: any, input: any) {
     auth
   }, result);
 
-  const pqAudit = buildHybridAuditEnvelope(input, result, audit);
+  const pqPolicyResult = validatePqRequest(auth?.headers || {});
+  const pqAudit = buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
   const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit: pqAudit };
 
   await persistTransaction({
@@ -76,7 +78,8 @@ export async function capturePayment(auth: any, input: any) {
     auth
   }, result);
 
-  const pqAudit = buildHybridAuditEnvelope(input, result, audit);
+  const pqPolicyResult = validatePqRequest(auth?.headers || {});
+  const pqAudit = buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
   const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit: pqAudit };
 
   await persistTransaction({
@@ -122,7 +125,8 @@ export async function voidPayment(auth: any, input: any) {
     auth
   }, result);
 
-  const pqAudit = buildHybridAuditEnvelope(input, result, audit);
+  const pqPolicyResult = validatePqRequest(auth?.headers || {});
+  const pqAudit = buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
   const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit: pqAudit };
 
   await persistTransaction({
@@ -168,7 +172,8 @@ export async function refundPayment(auth: any, input: any) {
     auth
   }, result);
 
-  const pqAudit = buildHybridAuditEnvelope(input, result, audit);
+  const pqPolicyResult = validatePqRequest(auth?.headers || {});
+  const pqAudit = buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
   const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit: pqAudit };
 
   await persistTransaction({

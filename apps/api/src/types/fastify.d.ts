@@ -7,6 +7,7 @@ type AuthContext = {
   merchantStatus: string;
   apiKeyId: string;
   apiKeyLabel: string;
+  headers?: Record<string, any>;
 };
 
 declare module 'fastify' {

@@ -62,7 +62,8 @@ export default fp(async (app) => {
       merchantName: record.merchantName,
       merchantStatus: record.merchantStatus,
       apiKeyId: record.apiKeyId,
-      apiKeyLabel: record.apiKeyLabel
+      apiKeyLabel: record.apiKeyLabel,
+      headers: request.headers
     };
   });
 });
