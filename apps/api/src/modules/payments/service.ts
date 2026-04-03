@@ -32,7 +32,7 @@ export async function createSale(auth: any, input: any) {
   }, result);
 
   const pqPolicyResult = validatePqRequest(auth?.headers || {});
-  const pqAudit = buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
+  const pqAudit = await buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
   const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit: pqAudit };
 
   await persistTransaction({
@@ -79,7 +79,7 @@ export async function capturePayment(auth: any, input: any) {
   }, result);
 
   const pqPolicyResult = validatePqRequest(auth?.headers || {});
-  const pqAudit = buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
+  const pqAudit = await buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
   const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit: pqAudit };
 
   await persistTransaction({
@@ -126,7 +126,7 @@ export async function voidPayment(auth: any, input: any) {
   }, result);
 
   const pqPolicyResult = validatePqRequest(auth?.headers || {});
-  const pqAudit = buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
+  const pqAudit = await buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
   const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit: pqAudit };
 
   await persistTransaction({
@@ -173,7 +173,7 @@ export async function refundPayment(auth: any, input: any) {
   }, result);
 
   const pqPolicyResult = validatePqRequest(auth?.headers || {});
-  const pqAudit = buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
+  const pqAudit = await buildHybridAuditEnvelope(input, result, audit, pqPolicyResult);
   const normalized = { ...normalizeResponse(input, result, result.processor || "unknown"), audit: pqAudit };
 
   await persistTransaction({
