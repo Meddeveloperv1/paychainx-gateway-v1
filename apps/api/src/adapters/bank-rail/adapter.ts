@@ -2,7 +2,7 @@ type NormalizedSaleInput = {
   merchantReference: string;
   amount: number;
   currency: string;
-  paymentSourceType: 'bank_token';
+  paymentSourceType: 'sandbox_card' | 'cybersource_transient_token' | 'bank_token';
   tokenRef: string;
   customerEmail?: string | null;
 };

@@ -13,8 +13,7 @@ import {
   voidPayment,
   refundPayment,
   getPaymentById,
-  getPaymentAttempts,
-  getTransactions
+  getPaymentAttempts
 } from './service.js';
 import { writeAuditEvent } from '../audit/service.js';
 
@@ -37,13 +36,6 @@ async function completeIdempotency(app: FastifyInstance, request: any, result: u
 }
 
 export async function paymentRoutes(app: FastifyInstance) {
-  app.get('/payments/transactions', {
-    preHandler: [app.authenticate]
-  }, async (request, reply) => {
-    const merchantId = (request.query as { merchant_id?: string })?.merchant_id;
-    const result = await getTransactions(request.auth!, merchantId);
-    return reply.send({ items: result });
-  });
 
   app.get('/payments/:paymentId', {
     preHandler: [app.authenticate]
