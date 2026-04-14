@@ -4,7 +4,7 @@ type NormalizedSaleInput = {
   merchantReference: string;
   amount: number;
   currency: string;
-  paymentSourceType: 'sandbox_card' | 'cybersource_transient_token';
+  paymentSourceType: 'sandbox_card' | 'cybersource_transient_token' | 'bank_token';
   tokenRef: string;
   customerEmail?: string | null;
 };
@@ -75,6 +75,19 @@ export class CyberSourceAdapter {
 
     if (input.paymentSourceType === 'cybersource_transient_token') {
       return this.saleTransientToken(input);
+    }
+
+    if (input.paymentSourceType === 'bank_token') {
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: '',
+        processorStatus: 'UNSUPPORTED_SOURCE',
+        processorHttpStatus: null,
+        responsePayload: null,
+        errorMessage: 'bank_token is not supported by cybersource adapter'
+      };
     }
 
     return {

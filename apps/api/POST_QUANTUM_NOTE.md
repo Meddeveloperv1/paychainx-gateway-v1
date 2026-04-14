@@ -1,9 +1,12 @@
-# Post-Quantum Addition Test
+# Post-Quantum Hardening Roadmap
 
-This file is a placeholder test commit for post-quantum roadmap tracking.
+This document tracks future post-quantum hardening considerations for the system.
 
-Planned areas:
-- post-quantum signatures
-- post-quantum key exchange
-- cryptographic hardening review
-- future deployment readiness
+## Initial Scope
+- Evaluate post-quantum signature support
+- Evaluate post-quantum key exchange compatibility
+- Review cryptographic dependency upgrade paths
+- Define migration path for production hardening
+
+## Status
+Initial placeholder added for roadmap tracking.

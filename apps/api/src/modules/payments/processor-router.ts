@@ -1,35 +1,25 @@
-import { CyberSourceAdapter } from "../../adapters/cybersource/adapter.js";
-import { FreedomPayAdapter } from "../../adapters/freedompay/adapter.js";
-import { resolveCredentials } from "./credential-resolver.js";
+import { CyberSourceAdapter } from '../../adapters/cybersource/adapter.js';
+import { BankRailAdapter } from '../../adapters/bank-rail/adapter.js';
 
-function getProcessor(type: string, merchant?: any) {
-  let adapter: any;
+export type SupportedProcessor = 'cybersource' | 'bank_rail';
 
-  switch (type) {
-    case "freedompay":
-      adapter = new FreedomPayAdapter();
-      break;
+export function resolveProcessor(preferred?: string) {
+  const name = (preferred || 'cybersource') as SupportedProcessor;
 
-    case "propelr":
-    case "cybersource":
+  switch (name) {
+    case 'cybersource':
+      return {
+        name: 'cybersource' as const,
+        adapter: new CyberSourceAdapter()
+      };
+
+    case 'bank_rail':
+      return {
+        name: 'bank_rail' as const,
+        adapter: new BankRailAdapter()
+      };
+
     default:
-      adapter = new CyberSourceAdapter();
+      throw new Error(`Unsupported processor: ${preferred}`);
   }
-
-  const credentials = resolveCredentials(merchant);
-  adapter.credentials = credentials;
-
-  return adapter;
-}
-
-export function resolveProcessor(preferred?: string, merchant?: any) {
-  if (preferred) {
-    return getProcessor(preferred, merchant);
-  }
-
-  if (merchant?.processor) {
-    return getProcessor(merchant.processor, merchant);
-  }
-
-  return getProcessor("cybersource", merchant);
 }
