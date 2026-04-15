@@ -2,7 +2,9 @@ import { db } from '../../db/client.js';
 import { paymentIntents, paymentAttempts } from '../../db/schema.js';
 import { desc, eq } from 'drizzle-orm';
 import { SaleRequest, CaptureRequest, VoidRequest, RefundRequest } from './schemas.js';
-import { resolveProcessor } from './processor-router.js';
+import { CyberSourceAdapter } from '../../adapters/cybersource/adapter.js';
+
+const processor = new CyberSourceAdapter();
 
 export async function getPaymentById(paymentId: string) {
   const rows = await db.select().from(paymentIntents).where(eq(paymentIntents.id, paymentId)).limit(1);
@@ -17,20 +19,18 @@ export async function getPaymentAttempts(paymentId: string) {
 }
 
 export async function createSale(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: SaleRequest) {
-  const processorSelection = resolveProcessor(input.routing?.preferred_processor);
-  const processor = processorSelection.adapter;
-
   const insertedIntent = await db.insert(paymentIntents).values({
     merchantId: auth.merchantId,
     merchantReference: input.merchant_reference,
     amount: input.amount,
     currency: input.currency,
     status: 'created',
-    paymentMethodType: input.payment_source.type,
-    paymentTokenRef: input.payment_source.token ?? '',
+    paymentMethodType: input.payment_method.type,
+    paymentTokenRef: input.payment_method.token_ref,
     customerRef: input.customer?.customer_ref,
     customerEmail: input.customer?.email,
-    processor: processorSelection.name
+    description: input.description,
+    processor: 'cybersource'
   }).returning();
 
   const intent = insertedIntent[0];
@@ -39,7 +39,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     paymentIntentId: intent.id,
     merchantId: auth.merchantId,
     action: 'sale',
-    processor: processorSelection.name,
+    processor: 'cybersource',
     status: 'pending',
     requestPayload: JSON.stringify(input)
   }).returning();
@@ -50,9 +50,9 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     merchantReference: input.merchant_reference,
     amount: input.amount,
     currency: input.currency,
-    paymentSourceType: input.payment_source.type,
-    tokenRef: input.payment_source.token ?? '',
-    customerEmail: input.customer?.email
+    tokenRef: input.payment_method.token_ref,
+    customerEmail: input.customer?.email,
+    description: input.description
   });
 
   await db.update(paymentAttempts)
@@ -80,7 +80,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     status: result.success ? result.status : 'failed',
     amount: intent.amount,
     currency: intent.currency,
-    processor: processorSelection.name,
+    processor: 'cybersource',
     processor_transaction_id: result.processorTransactionId ?? null,
     payment_attempt_id: attempt.id,
     created_at: intent.createdAt,
@@ -89,14 +89,11 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
 }
 
 export async function capturePayment(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: CaptureRequest) {
-  const processorSelection = resolveProcessor('cybersource');
-  const processor = processorSelection.adapter;
-
   const insertedAttempt = await db.insert(paymentAttempts).values({
     paymentIntentId: input.payment_id,
     merchantId: auth.merchantId,
     action: 'capture',
-    processor: processorSelection.name,
+    processor: 'cybersource',
     status: 'pending',
     requestPayload: JSON.stringify(input)
   }).returning();
@@ -131,7 +128,7 @@ export async function capturePayment(auth: NonNullable<import('fastify').Fastify
   return {
     payment_id: input.payment_id,
     status: result.success ? 'captured' : 'failed',
-    processor: processorSelection.name,
+    processor: 'cybersource',
     processor_transaction_id: result.processorTransactionId ?? null,
     payment_attempt_id: attempt.id,
     error_message: result.errorMessage ?? null
@@ -139,14 +136,11 @@ export async function capturePayment(auth: NonNullable<import('fastify').Fastify
 }
 
 export async function voidPayment(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: VoidRequest) {
-  const processorSelection = resolveProcessor('cybersource');
-  const processor = processorSelection.adapter;
-
   const insertedAttempt = await db.insert(paymentAttempts).values({
     paymentIntentId: input.payment_id,
     merchantId: auth.merchantId,
     action: 'void',
-    processor: processorSelection.name,
+    processor: 'cybersource',
     status: 'pending',
     requestPayload: JSON.stringify(input)
   }).returning();
@@ -179,7 +173,7 @@ export async function voidPayment(auth: NonNullable<import('fastify').FastifyReq
   return {
     payment_id: input.payment_id,
     status: result.success ? 'voided' : 'failed',
-    processor: processorSelection.name,
+    processor: 'cybersource',
     processor_transaction_id: result.processorTransactionId ?? null,
     payment_attempt_id: attempt.id,
     error_message: result.errorMessage ?? null
@@ -187,14 +181,11 @@ export async function voidPayment(auth: NonNullable<import('fastify').FastifyReq
 }
 
 export async function refundPayment(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: RefundRequest) {
-  const processorSelection = resolveProcessor('cybersource');
-  const processor = processorSelection.adapter;
-
   const insertedAttempt = await db.insert(paymentAttempts).values({
     paymentIntentId: input.payment_id,
     merchantId: auth.merchantId,
     action: 'refund',
-    processor: processorSelection.name,
+    processor: 'cybersource',
     status: 'pending',
     requestPayload: JSON.stringify(input)
   }).returning();
@@ -229,7 +220,7 @@ export async function refundPayment(auth: NonNullable<import('fastify').FastifyR
   return {
     payment_id: input.payment_id,
     status: result.success ? 'refunded' : 'failed',
-    processor: processorSelection.name,
+    processor: 'cybersource',
     processor_transaction_id: result.processorTransactionId ?? null,
     payment_attempt_id: attempt.id,
     error_message: result.errorMessage ?? null

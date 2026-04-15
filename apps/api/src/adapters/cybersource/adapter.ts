@@ -1,108 +1,15 @@
 import { cyberSourcePost } from './client.js';
+import type {
+  ProcessorAdapter,
+  NormalizedSaleInput,
+  NormalizedCaptureInput,
+  NormalizedVoidInput,
+  NormalizedRefundInput,
+  NormalizedPaymentResult
+} from '../processor.interface.js';
 
-type NormalizedSaleInput = {
-  merchantReference: string;
-  amount: number;
-  currency: string;
-  paymentSourceType: 'sandbox_card' | 'cybersource_transient_token' | 'bank_token';
-  tokenRef: string;
-  customerEmail?: string | null;
-};
-
-type NormalizedCaptureInput = {
-  processorTransactionId: string;
-  amount: number;
-  currency: string;
-};
-
-type NormalizedVoidInput = {
-  processorTransactionId: string;
-};
-
-type NormalizedRefundInput = {
-  processorTransactionId: string;
-  amount: number;
-  currency: string;
-};
-
-type NormalizedPaymentResult = {
-  processor: 'cybersource';
-  success: boolean;
-  status: string;
-  processorTransactionId?: string | null;
-  processorStatus?: string | null;
-  processorHttpStatus?: number | null;
-  responsePayload?: unknown;
-  errorMessage?: string | null;
-};
-
-function mapCyberSourceResult(
-  response: { statusCode: number; requestPayload: unknown; body: unknown },
-  successStatus: string,
-  failureMessage: string
-): NormalizedPaymentResult {
-  const body = (response.body ?? {}) as Record<string, unknown>;
-  const statusCode = response.statusCode;
-  const success = statusCode >= 200 && statusCode < 300;
-
-  return {
-    processor: 'cybersource',
-    success,
-    status: success ? successStatus : 'failed',
-    processorTransactionId: typeof body.id === 'string' ? body.id : '',
-    processorStatus: typeof body.status === 'string'
-      ? body.status
-      : (success ? successStatus.toUpperCase() : 'ERROR'),
-    processorHttpStatus: statusCode,
-    responsePayload: response.body,
-    errorMessage: success
-      ? null
-      : (typeof body.message === 'string' ? body.message : failureMessage)
-  };
-}
-
-export class CyberSourceAdapter {
-  credentials: any;
-
-  private getMode(): string {
-    return process.env.CYBERSOURCE_MODE || 'sandbox_card';
-  }
-
+export class CyberSourceAdapter implements ProcessorAdapter {
   async sale(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
-    if (input.paymentSourceType === 'sandbox_card') {
-      return this.saleSandboxCard(input);
-    }
-
-    if (input.paymentSourceType === 'cybersource_transient_token') {
-      return this.saleTransientToken(input);
-    }
-
-    if (input.paymentSourceType === 'bank_token') {
-      return {
-        processor: 'cybersource',
-        success: false,
-        status: 'failed',
-        processorTransactionId: '',
-        processorStatus: 'UNSUPPORTED_SOURCE',
-        processorHttpStatus: null,
-        responsePayload: null,
-        errorMessage: 'bank_token is not supported by cybersource adapter'
-      };
-    }
-
-    return {
-      processor: 'cybersource',
-      success: false,
-      status: 'failed',
-      processorTransactionId: '',
-      processorStatus: 'ERROR',
-      processorHttpStatus: null,
-      responsePayload: null,
-      errorMessage: `Unsupported payment source type: ${input.paymentSourceType}`
-    };
-  }
-
-  private async saleSandboxCard(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
     const payload = {
       clientReferenceInformation: {
         code: input.merchantReference
@@ -121,7 +28,7 @@ export class CyberSourceAdapter {
           country: 'US',
           phoneNumber: '4158880000',
           company: 'Visa',
-          email: input.customerEmail || 'test@cybs.com'
+          email: 'test@cybs.com'
         },
         amountDetails: {
           totalAmount: (input.amount / 100).toFixed(2),
@@ -140,92 +47,34 @@ export class CyberSourceAdapter {
 
     try {
       const response = await cyberSourcePost('/pts/v2/payments', payload);
-      return mapCyberSourceResult(response, 'captured', 'CyberSource sale failed');
-    } catch (err) {
-      return {
-        processor: 'cybersource',
-        success: false,
-        status: 'failed',
-        processorTransactionId: '',
-        processorStatus: 'ERROR',
-        processorHttpStatus: null,
-        responsePayload: null,
-        errorMessage: err instanceof Error ? err.message : String(err)
-      };
-    }
-  }
 
-  private async saleTransientToken(input: NormalizedSaleInput): Promise<NormalizedPaymentResult> {
-    const envToken = process.env.CYBERSOURCE_TEST_TRANSIENT_TOKEN || '';
-    const token = input.tokenRef && input.tokenRef !== 'ignore_for_now'
-      ? input.tokenRef
-      : envToken;
-
-    if (!token) {
-      return {
-        processor: 'cybersource',
-        success: false,
-        status: 'failed',
-        processorTransactionId: '',
-        processorStatus: 'ERROR',
-        processorHttpStatus: null,
-        responsePayload: null,
-        errorMessage: 'Missing transient token JWT'
-      };
-    }
-
-    if (!token.includes('.')) {
-      return {
-        processor: 'cybersource',
-        success: false,
-        status: 'failed',
-        processorTransactionId: '',
-        processorStatus: 'ERROR',
-        processorHttpStatus: null,
-        responsePayload: null,
-        errorMessage: 'Invalid transient token format'
-      };
-    }
-
-    const payload = {
-      clientReferenceInformation: {
-        code: input.merchantReference
-      },
-      processingInformation: {
-        commerceIndicator: 'internet'
-      },
-      tokenInformation: {
-        transientTokenJwt: token
-      },
-      orderInformation: {
-        amountDetails: {
-          totalAmount: (input.amount / 100).toFixed(2),
-          currency: input.currency
-        },
-        billTo: {
-          firstName: 'Test',
-          lastName: 'User',
-          address1: '245 Market St',
-          postalCode: '94105',
-          locality: 'san francisco',
-          administrativeArea: 'CA',
-          country: 'US',
-          email: input.customerEmail || 'test@cybs.com'
-        }
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          processor: 'cybersource',
+          success: true,
+          status: 'captured',
+          processorTransactionId: String((response.body as any)?.id ?? ''),
+          processorStatus: String((response.body as any)?.status ?? 'AUTHORIZED'),
+          processorHttpStatus: response.statusCode,
+          responsePayload: response.body
+        };
       }
-    };
 
-    try {
-      const response = await cyberSourcePost('/pts/v2/payments', payload);
-      return mapCyberSourceResult(response, 'captured', 'CyberSource sale failed');
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: String((response.body as any)?.id ?? ''),
+        processorStatus: String((response.body as any)?.status ?? 'ERROR'),
+        processorHttpStatus: response.statusCode,
+        responsePayload: response.body,
+        errorMessage: String((response.body as any)?.message ?? 'CyberSource sale failed')
+      };
     } catch (err) {
       return {
         processor: 'cybersource',
         success: false,
         status: 'failed',
-        processorTransactionId: '',
-        processorStatus: 'ERROR',
-        processorHttpStatus: null,
         responsePayload: null,
         errorMessage: err instanceof Error ? err.message : String(err)
       };
@@ -244,15 +93,35 @@ export class CyberSourceAdapter {
 
     try {
       const response = await cyberSourcePost(`/pts/v2/payments/${input.processorTransactionId}/captures`, payload);
-      return mapCyberSourceResult(response, 'captured', 'CyberSource capture failed');
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          processor: 'cybersource',
+          success: true,
+          status: 'captured',
+          processorTransactionId: String((response.body as any)?.id ?? input.processorTransactionId),
+          processorStatus: String((response.body as any)?.status ?? 'PENDING'),
+          processorHttpStatus: response.statusCode,
+          responsePayload: response.body
+        };
+      }
+
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: input.processorTransactionId,
+        processorStatus: String((response.body as any)?.status ?? 'ERROR'),
+        processorHttpStatus: response.statusCode,
+        responsePayload: response.body,
+        errorMessage: String((response.body as any)?.message ?? 'CyberSource capture failed')
+      };
     } catch (err) {
       return {
         processor: 'cybersource',
         success: false,
         status: 'failed',
         processorTransactionId: input.processorTransactionId,
-        processorStatus: 'ERROR',
-        processorHttpStatus: null,
         responsePayload: null,
         errorMessage: err instanceof Error ? err.message : String(err)
       };
@@ -262,15 +131,35 @@ export class CyberSourceAdapter {
   async void(input: NormalizedVoidInput): Promise<NormalizedPaymentResult> {
     try {
       const response = await cyberSourcePost(`/pts/v2/payments/${input.processorTransactionId}/voids`, {});
-      return mapCyberSourceResult(response, 'voided', 'CyberSource void failed');
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          processor: 'cybersource',
+          success: true,
+          status: 'voided',
+          processorTransactionId: String((response.body as any)?.id ?? input.processorTransactionId),
+          processorStatus: String((response.body as any)?.status ?? 'PENDING'),
+          processorHttpStatus: response.statusCode,
+          responsePayload: response.body
+        };
+      }
+
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: input.processorTransactionId,
+        processorStatus: String((response.body as any)?.status ?? 'ERROR'),
+        processorHttpStatus: response.statusCode,
+        responsePayload: response.body,
+        errorMessage: String((response.body as any)?.message ?? 'CyberSource void failed')
+      };
     } catch (err) {
       return {
         processor: 'cybersource',
         success: false,
         status: 'failed',
         processorTransactionId: input.processorTransactionId,
-        processorStatus: 'ERROR',
-        processorHttpStatus: null,
         responsePayload: null,
         errorMessage: err instanceof Error ? err.message : String(err)
       };
@@ -289,15 +178,35 @@ export class CyberSourceAdapter {
 
     try {
       const response = await cyberSourcePost(`/pts/v2/payments/${input.processorTransactionId}/refunds`, payload);
-      return mapCyberSourceResult(response, 'refunded', 'CyberSource refund failed');
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          processor: 'cybersource',
+          success: true,
+          status: 'refunded',
+          processorTransactionId: String((response.body as any)?.id ?? input.processorTransactionId),
+          processorStatus: String((response.body as any)?.status ?? 'PENDING'),
+          processorHttpStatus: response.statusCode,
+          responsePayload: response.body
+        };
+      }
+
+      return {
+        processor: 'cybersource',
+        success: false,
+        status: 'failed',
+        processorTransactionId: input.processorTransactionId,
+        processorStatus: String((response.body as any)?.status ?? 'ERROR'),
+        processorHttpStatus: response.statusCode,
+        responsePayload: response.body,
+        errorMessage: String((response.body as any)?.message ?? 'CyberSource refund failed')
+      };
     } catch (err) {
       return {
         processor: 'cybersource',
         success: false,
         status: 'failed',
         processorTransactionId: input.processorTransactionId,
-        processorStatus: 'ERROR',
-        processorHttpStatus: null,
         responsePayload: null,
         errorMessage: err instanceof Error ? err.message : String(err)
       };

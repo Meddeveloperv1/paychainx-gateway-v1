@@ -1,4 +1,3 @@
-import securityPlugin from "./plugins/security.js";
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -8,8 +7,6 @@ import idempotencyPlugin from './plugins/idempotency.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { paymentRoutes } from './modules/payments/routes.js';
-import { merchantRoutes } from './modules/merchants/routes.js';
-import { onboardingRoutes } from './modules/merchants/onboarding-routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 
 export async function buildApp() {
@@ -43,14 +40,11 @@ export async function buildApp() {
   });
 
   await app.register(dbPlugin);
-  await app.register(securityPlugin);
   await app.register(authPlugin);
   await app.register(idempotencyPlugin);
   await app.register(healthRoutes, { prefix: '/v1' });
   await app.register(authRoutes, { prefix: '/v1' });
   await app.register(paymentRoutes, { prefix: '/v1' });
-  await app.register(merchantRoutes, { prefix: '/v1' });
-  await app.register(onboardingRoutes, { prefix: '/v1' });
   await app.register(adminRoutes, { prefix: '/v1' });
 
   return app;

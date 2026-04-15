@@ -36,7 +36,6 @@ async function completeIdempotency(app: FastifyInstance, request: any, result: u
 }
 
 export async function paymentRoutes(app: FastifyInstance) {
-
   app.get('/payments/:paymentId', {
     preHandler: [app.authenticate]
   }, async (request, reply) => {
