@@ -135,35 +135,7 @@ export const proofVault = pgTable('proof_vault', {
   sidecarVersion: text('sidecar_version'),
   evidenceBundleUri: text('evidence_bundle_uri'),
 
-  policySnapshot: jsonb('policy_snapshot'),
-
-  createdAt: timestamp('created_at').defaultNow(),
-  verifiedAt: timestamp('verified_at')
-});
-
-export const proofVault = pgTable('proof_vault', {
-  id: uuid('id').defaultRandom().primaryKey(),
-
-  proofId: text('proof_id').notNull().unique(),
-  paymentAttemptId: uuid('payment_attempt_id').notNull(),
-  merchantId: uuid('merchant_id').notNull(),
-  merchantReference: text('merchant_reference').notNull(),
-
-  proofHash: text('proof_hash').notNull(),
-  hashAlgorithm: text('hash_algorithm').default('sha256'),
-
-  signature: text('signature'),
-  signatureAlgorithm: text('signature_algorithm'),
-
-  proofStatus: text('proof_status').notNull(),
-
-  requestFingerprint: text('request_fingerprint'),
-  processorResponseFingerprint: text('processor_response_fingerprint'),
-
-  sidecarVersion: text('sidecar_version'),
-  evidenceBundleUri: text('evidence_bundle_uri'),
-
-  policySnapshot: jsonb('policy_snapshot'),
+  policySnapshot: text('policy_snapshot'),
 
   createdAt: timestamp('created_at').defaultNow(),
   verifiedAt: timestamp('verified_at')
