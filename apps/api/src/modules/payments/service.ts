@@ -11,7 +11,7 @@ import { resolveProcessorCredentials } from './credential-resolver.js';
 import { getCachedProcessorCredentials, setCachedProcessorCredentials } from '../cache/credential-cache.js';
 import { buildPQAuditEnvelope } from '../pq/hybrid-audit.js';
 import { buildPQProofRequest } from '../pq/proof-request.js';
-import { enqueueAuditEvent } from '../audit/audit-queue.js';
+import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
 import { submitPQProofRequest } from '../pq/sidecar-client.js';
 
 const processor = new CyberSourceAdapter();
@@ -102,7 +102,15 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     body: saleRequestPayload
   });
   enqueueAuditEvent('pq.proof.request', pqProofRequest);
-  void submitPQProofRequest(pqProofRequest);
+  void submitPQProofRequest(pqProofRequest).then((res) => {
+    setPQProofStatus(pqProofRequest.merchantReference, {
+      merchantReference: pqProofRequest.merchantReference,
+      payloadHash: pqProofRequest.payloadHash,
+      status: res.status,
+      mode: res.mode,
+      updatedAt: new Date().toISOString()
+    });
+  });
 
   const insertedAttempt = await db.insert(paymentAttempts).values({
     paymentIntentId: intent.id,
