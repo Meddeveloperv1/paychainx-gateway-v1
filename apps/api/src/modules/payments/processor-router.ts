@@ -8,6 +8,7 @@ export type ProcessorRouteInput = {
 };
 
 export function resolveProcessor(input: ProcessorRouteInput): ProcessorName {
+  if (input.requestedProcessor === 'bank_rail') return 'bank_rail';
   if (input.requestedProcessor === 'cybersource') return 'cybersource';
   return 'cybersource';
 }

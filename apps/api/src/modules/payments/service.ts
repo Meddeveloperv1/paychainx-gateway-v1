@@ -3,9 +3,11 @@ import { paymentIntents, paymentAttempts } from '../../db/schema.js';
 import { desc, eq } from 'drizzle-orm';
 import { SaleRequest, CaptureRequest, VoidRequest, RefundRequest } from './schemas.js';
 import { CyberSourceAdapter } from '../../adapters/cybersource/adapter.js';
+import { BankRailAdapter } from '../../adapters/bank-rail/adapter.js';
 import { resolveProcessor } from './processor-router.js';
 
 const processor = new CyberSourceAdapter();
+const bankRailProcessor = new BankRailAdapter();
 
 export async function getPaymentById(paymentId: string) {
   const rows = await db.select().from(paymentIntents).where(eq(paymentIntents.id, paymentId)).limit(1);
@@ -59,18 +61,26 @@ const insertedIntent = await db.insert(paymentIntents).values({
 
   const selectedProcessor = resolveProcessor({ amount: input.amount, currency: input.currency, merchantId: auth.merchantId, requestedProcessor: null });
 
-  if (selectedProcessor !== 'cybersource') {
-    throw new Error(`Processor ${selectedProcessor} not enabled yet on production gateway`);
-  }
+  let result;
 
-  const result = await processor.sale({
+  if (selectedProcessor === 'bank_rail') {
+    result = await bankRailProcessor.sale({
+      merchantReference: input.merchant_reference,
+      amount: input.amount,
+      currency: input.currency,
+      customerEmail: input.customer?.email,
+      description: input.description
+    });
+  } else {
+    result = await processor.sale({
     merchantReference: input.merchant_reference,
     amount: input.amount,
     currency: input.currency,
-    tokenRef: normalizedPaymentMethod.token_ref,
-    customerEmail: input.customer?.email,
-    description: input.description
-  });
+      tokenRef: normalizedPaymentMethod.token_ref,
+      customerEmail: input.customer?.email,
+      description: input.description
+    });
+  }
 
   await db.update(paymentAttempts)
     .set({
