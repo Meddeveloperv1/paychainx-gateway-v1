@@ -49,12 +49,10 @@ export default fp(async function idempotencyPlugin(app) {
       return reply.code(redisCached.statusCode).send(redisCached.body);
     }
 
-    if (!redisEnabled) {
-      const memCached = getCachedResponse(idemHeader);
-      if (memCached) {
-        reply.header('x-paychainx-idempotency', 'replay-memory');
-        return reply.code(memCached.statusCode).send(memCached.body);
-      }
+    const memCached = getCachedResponse(idemHeader);
+    if (!redisEnabled && memCached) {
+      reply.header('x-paychainx-idempotency', 'replay-memory');
+      return reply.code(memCached.statusCode).send(memCached.body);
     }
 
     const redisInFlight = await redisHasInFlight(idemHeader);
