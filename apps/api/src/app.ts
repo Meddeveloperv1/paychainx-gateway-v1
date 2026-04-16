@@ -4,6 +4,7 @@ import swaggerUi from '@fastify/swagger-ui';
 import dbPlugin from './plugins/db.js';
 import authPlugin from './plugins/auth.js';
 import idempotencyPlugin from './plugins/idempotency.js';
+import timingPlugin from './plugins/timing.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { paymentRoutes } from './modules/payments/routes.js';
@@ -41,6 +42,7 @@ export async function buildApp() {
 
   await app.register(dbPlugin);
   await app.register(authPlugin);
+  await app.register(timingPlugin);
   await app.register(idempotencyPlugin);
   await app.register(healthRoutes, { prefix: '/v1' });
   await app.register(authRoutes, { prefix: '/v1' });
