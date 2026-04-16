@@ -19,14 +19,24 @@ export async function getPaymentAttempts(paymentId: string) {
 }
 
 export async function createSale(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: SaleRequest) {
-  const insertedIntent = await db.insert(paymentIntents).values({
+  const normalizedPaymentMethod = input.payment_method ?? (
+  input.payment_source
+    ? { type: 'card_token', token_ref: 'test_token_visa' }
+    : undefined
+);
+
+if (!normalizedPaymentMethod) {
+  throw new Error('payment_method or payment_source required');
+}
+
+const insertedIntent = await db.insert(paymentIntents).values({
     merchantId: auth.merchantId,
     merchantReference: input.merchant_reference,
     amount: input.amount,
     currency: input.currency,
     status: 'created',
-    paymentMethodType: input.payment_method.type,
-    paymentTokenRef: input.payment_method.token_ref,
+    paymentMethodType: normalizedPaymentMethod.type,
+    paymentTokenRef: normalizedPaymentMethod.token_ref,
     customerRef: input.customer?.customer_ref,
     customerEmail: input.customer?.email,
     description: input.description,
@@ -50,7 +60,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     merchantReference: input.merchant_reference,
     amount: input.amount,
     currency: input.currency,
-    tokenRef: input.payment_method.token_ref,
+    tokenRef: normalizedPaymentMethod.token_ref,
     customerEmail: input.customer?.email,
     description: input.description
   });

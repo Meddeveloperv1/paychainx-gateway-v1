@@ -7,7 +7,10 @@ export const saleRequestSchema = z.object({
   payment_method: z.object({
     type: z.literal('card_token'),
     token_ref: z.string().min(1)
-  }),
+  }).optional(),
+  payment_source: z.object({
+    type: z.literal('sandbox_card')
+  }).optional(),
   customer: z.object({
     customer_ref: z.string().optional(),
     email: z.string().email().optional()
