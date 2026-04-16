@@ -113,6 +113,7 @@ export const auditEvents = pgTable('audit_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 });
 
+
 export const proofVault = pgTable('proof_vault', {
   id: uuid('id').defaultRandom().primaryKey(),
 
@@ -140,3 +141,4 @@ export const proofVault = pgTable('proof_vault', {
   createdAt: timestamp('created_at').defaultNow(),
   verifiedAt: timestamp('verified_at')
 });
+
