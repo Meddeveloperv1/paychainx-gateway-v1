@@ -10,6 +10,7 @@ import { getCachedMerchantRoutingProfile, setCachedMerchantRoutingProfile } from
 import { resolveProcessorCredentials } from './credential-resolver.js';
 import { getCachedProcessorCredentials, setCachedProcessorCredentials } from '../cache/credential-cache.js';
 import { buildPQAuditEnvelope } from '../pq/hybrid-audit.js';
+import { enqueueAuditEvent } from '../audit/audit-queue.js';
 
 const processor = new CyberSourceAdapter();
 const bankRailProcessor = new BankRailAdapter();
@@ -68,6 +69,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
   console.log('RESOLVED_CREDENTIALS:', resolvedCredentials);
   console.log('REQUESTED_PROCESSOR:', input.requested_processor, 'SELECTED_PROCESSOR:', selectedProcessor);
   console.log('PQ_AUDIT_ENVELOPE:', pqAuditEnvelope);
+  enqueueAuditEvent('payment.sale', pqAuditEnvelope);
 
   const insertedIntent = await db.insert(paymentIntents).values({
     merchantId: auth.merchantId,

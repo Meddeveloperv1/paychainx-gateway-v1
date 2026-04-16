@@ -8,6 +8,13 @@ import {
   getCachedResponse,
   setCachedResponse
 } from '../modules/cache/idempotency-cache.js';
+import {
+  redisHasInFlight,
+  redisSetInFlight,
+  redisClearInFlight,
+  redisGetResponse,
+  redisSetResponse
+} from '../modules/cache/idempotency-redis.js';
 
 export default fp(async function idempotencyPlugin(app) {
   app.decorate('enforceIdempotency', async function (request, reply) {
@@ -15,48 +22,57 @@ export default fp(async function idempotencyPlugin(app) {
 
     if (!idemHeader || typeof idemHeader !== 'string') {
       return reply.code(400).send({
-        error: {
-          code: 'IDEMPOTENCY_KEY_REQUIRED',
-          message: 'Missing Idempotency-Key header'
-        }
+        error: { code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Missing Idempotency-Key header' }
       });
     }
 
     if (!request.auth) {
       return reply.code(401).send({
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Missing auth context'
-        }
+        error: { code: 'UNAUTHORIZED', message: 'Missing auth context' }
       });
     }
 
     const routeKey = `${request.method}:${request.url}`;
     const payloadHash = JSON.stringify(request.body ?? {});
 
-    const cached = getCachedResponse(idemHeader);
-    if (cached) {
-      reply.header('x-paychainx-idempotency', 'replay-memory');
-      return reply.code(cached.statusCode).send(cached.body);
+    const redisCached = await redisGetResponse(idemHeader);
+    if (redisCached) {
+      reply.header('x-paychainx-idempotency', 'replay-redis');
+      return reply.code(redisCached.statusCode).send(redisCached.body);
     }
 
-    if (getInFlightKey(idemHeader)) {
+    const memCached = getCachedResponse(idemHeader);
+    if (memCached) {
+      reply.header('x-paychainx-idempotency', 'replay-memory');
+      return reply.code(memCached.statusCode).send(memCached.body);
+    }
+
+    const redisInFlight = await redisHasInFlight(idemHeader);
+    if (redisInFlight) {
       return reply.code(409).send({
-        error: {
-          code: 'IDEMPOTENCY_IN_PROGRESS',
-          message: 'Request with this idempotency key is already being processed'
-        }
+        error: { code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Request with this idempotency key is already being processed' }
       });
     }
 
-    setInFlightKey(idemHeader);
+    const redisLocked = await redisSetInFlight(idemHeader);
+    if (!redisLocked) {
+      if (getInFlightKey(idemHeader)) {
+        return reply.code(409).send({
+          error: { code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Request with this idempotency key is already being processed' }
+        });
+      }
+      setInFlightKey(idemHeader);
+    }
 
     const originalSend = reply.send.bind(reply);
     reply.send = function (payload: unknown) {
-      if ((reply.statusCode || 200) < 500) {
-        setCachedResponse(idemHeader, reply.statusCode || 200, payload);
+      const code = reply.statusCode || 200;
+      if (code < 500) {
+        setCachedResponse(idemHeader, code, payload);
+        void redisSetResponse(idemHeader, code, payload);
       }
       clearInFlightKey(idemHeader);
+      void redisClearInFlight(idemHeader);
       return originalSend(payload);
     };
 
@@ -75,29 +91,27 @@ export default fp(async function idempotencyPlugin(app) {
       if (row) {
         if (row.requestHash !== payloadHash) {
           clearInFlightKey(idemHeader);
+          void redisClearInFlight(idemHeader);
           return reply.code(409).send({
-            error: {
-              code: 'IDEMPOTENCY_CONFLICT',
-              message: 'Idempotency key was already used with a different request payload'
-            }
+            error: { code: 'IDEMPOTENCY_CONFLICT', message: 'Idempotency key was already used with a different request payload' }
           });
         }
 
         if (row.status === 'completed' && row.responseBody) {
           const parsed = JSON.parse(row.responseBody);
           setCachedResponse(idemHeader, Number(row.responseCode ?? 200), parsed);
+          void redisSetResponse(idemHeader, Number(row.responseCode ?? 200), parsed);
           clearInFlightKey(idemHeader);
+          void redisClearInFlight(idemHeader);
           reply.header('x-paychainx-idempotency', 'replay-db');
           return reply.code(Number(row.responseCode ?? 200)).send(parsed);
         }
 
         if (row.status === 'in_progress') {
           clearInFlightKey(idemHeader);
+          void redisClearInFlight(idemHeader);
           return reply.code(409).send({
-            error: {
-              code: 'IDEMPOTENCY_IN_PROGRESS',
-              message: 'Request with this idempotency key is already being processed'
-            }
+            error: { code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Request with this idempotency key is already being processed' }
           });
         }
       }
@@ -111,6 +125,7 @@ export default fp(async function idempotencyPlugin(app) {
       }).onConflictDoNothing();
     } catch (error) {
       clearInFlightKey(idemHeader);
+      void redisClearInFlight(idemHeader);
       throw error;
     }
   });
