@@ -34,4 +34,11 @@ export async function registerSystemRoutes(app: FastifyInstance) {
       pq_proof: status
     });
   });
+
+  app.get('/v1/system/whoami', { preHandler: [app.authenticate] }, async (request, reply) => {
+    return reply.send({
+      ok: true,
+      auth: request.auth ?? null
+    });
+  });
 }
