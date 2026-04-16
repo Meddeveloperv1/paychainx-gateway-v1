@@ -7,8 +7,10 @@ type AuditEvent = {
 type PQProofStatus = {
   merchantReference: string;
   payloadHash: string;
-  status: 'queued' | 'submitted' | 'disabled';
+  status: 'queued' | 'submitted' | 'disabled' | 'failed';
   mode: string;
+  proofId?: string;
+  error?: string;
   updatedAt: string;
 };
 

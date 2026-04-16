@@ -18,8 +18,20 @@ export type PQProofRequest = {
   createdAt: string;
 };
 
+export type PQProofSubmitResult = {
+  queued: boolean;
+  mode: string;
+  status: 'submitted' | 'disabled' | 'failed';
+  proofId?: string;
+  error?: string;
+};
+
+function sidecarBaseUrl(): string | null {
+  return process.env.PQ_SIDECAR_URL || null;
+}
+
 export async function getPQSidecarHealth(): Promise<PQSidecarHealth> {
-  const url = process.env.PQ_SIDECAR_URL || null;
+  const url = sidecarBaseUrl();
 
   if (process.env.PQ_ENABLED !== 'true') {
     return { ok: false, status: 'down', url, error: 'PQ disabled' };
@@ -45,14 +57,49 @@ export async function getPQSidecarHealth(): Promise<PQSidecarHealth> {
   }
 }
 
-export async function submitPQProofRequest(_req: PQProofRequest): Promise<{ queued: boolean; mode: string; status: 'submitted' | 'disabled' }> {
+export async function submitPQProofRequest(req: PQProofRequest): Promise<PQProofSubmitResult> {
   if (process.env.PQ_ENABLED !== 'true') {
     return { queued: false, mode: 'disabled', status: 'disabled' };
   }
 
-  return {
-    queued: true,
-    mode: process.env.PQ_AUDIT_ONLY === 'false' ? 'strict' : 'async-audit',
-    status: 'submitted'
-  };
+  const url = sidecarBaseUrl();
+  if (!url) {
+    return { queued: false, mode: 'async-audit', status: 'failed', error: 'Missing PQ_SIDECAR_URL' };
+  }
+
+  try {
+    const res = await fetch(`${url.replace(/\/$/, '')}/proof`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'accept': 'application/json'
+      },
+      body: JSON.stringify(req)
+    });
+
+    if (!res.ok) {
+      return {
+        queued: false,
+        mode: 'async-audit',
+        status: 'failed',
+        error: `HTTP ${res.status}`
+      };
+    }
+
+    const data: any = await res.json().catch(() => ({}));
+
+    return {
+      queued: true,
+      mode: process.env.PQ_AUDIT_ONLY === 'false' ? 'strict' : 'async-audit',
+      status: 'submitted',
+      proofId: data?.proof_id ?? data?.id ?? undefined
+    };
+  } catch (err: any) {
+    return {
+      queued: false,
+      mode: 'async-audit',
+      status: 'failed',
+      error: err?.message || 'unknown error'
+    };
+  }
 }

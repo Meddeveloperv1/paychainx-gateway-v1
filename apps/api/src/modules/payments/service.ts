@@ -102,12 +102,21 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     body: saleRequestPayload
   });
   enqueueAuditEvent('pq.proof.request', pqProofRequest);
+  setPQProofStatus(pqProofRequest.merchantReference, {
+    merchantReference: pqProofRequest.merchantReference,
+    payloadHash: pqProofRequest.payloadHash,
+    status: 'queued',
+    mode: process.env.PQ_AUDIT_ONLY === 'false' ? 'strict' : 'async-audit',
+    updatedAt: new Date().toISOString()
+  });
   void submitPQProofRequest(pqProofRequest).then((res) => {
     setPQProofStatus(pqProofRequest.merchantReference, {
       merchantReference: pqProofRequest.merchantReference,
       payloadHash: pqProofRequest.payloadHash,
       status: res.status,
       mode: res.mode,
+      proofId: res.proofId,
+      error: res.error,
       updatedAt: new Date().toISOString()
     });
   });
