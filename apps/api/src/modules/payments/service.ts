@@ -3,6 +3,7 @@ import { paymentIntents, paymentAttempts } from '../../db/schema.js';
 import { desc, eq } from 'drizzle-orm';
 import { SaleRequest, CaptureRequest, VoidRequest, RefundRequest } from './schemas.js';
 import { CyberSourceAdapter } from '../../adapters/cybersource/adapter.js';
+import { resolveProcessor } from './processor-router.js';
 
 const processor = new CyberSourceAdapter();
 
@@ -55,6 +56,12 @@ const insertedIntent = await db.insert(paymentIntents).values({
   }).returning();
 
   const attempt = insertedAttempt[0];
+
+  const selectedProcessor = resolveProcessor({ amount: input.amount, currency: input.currency, merchantId: auth.merchantId, requestedProcessor: null });
+
+  if (selectedProcessor !== 'cybersource') {
+    throw new Error(`Processor ${selectedProcessor} not enabled yet on production gateway`);
+  }
 
   const result = await processor.sale({
     merchantReference: input.merchant_reference,
