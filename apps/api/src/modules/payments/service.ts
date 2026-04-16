@@ -5,6 +5,8 @@ import { SaleRequest, CaptureRequest, VoidRequest, RefundRequest } from './schem
 import { CyberSourceAdapter } from '../../adapters/cybersource/adapter.js';
 import { BankRailAdapter } from '../../adapters/bank-rail/adapter.js';
 import { resolveProcessor } from './processor-router.js';
+import { resolveMerchantRoutingProfile } from './merchant-resolver.js';
+import { resolveProcessorCredentials } from './credential-resolver.js';
 
 const processor = new CyberSourceAdapter();
 const bankRailProcessor = new BankRailAdapter();
@@ -59,7 +61,18 @@ const insertedIntent = await db.insert(paymentIntents).values({
 
   const attempt = insertedAttempt[0];
 
-  const selectedProcessor = resolveProcessor({ amount: input.amount, currency: input.currency, merchantId: auth.merchantId, requestedProcessor: input.requested_processor ?? null });
+  const merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId);
+  const selectedProcessor = resolveProcessor({
+    amount: input.amount,
+    currency: input.currency,
+    merchantId: auth.merchantId,
+    requestedProcessor: input.requested_processor ?? merchantRoutingProfile.defaultProcessor
+  });
+  const resolvedCredentials = await resolveProcessorCredentials(auth.merchantId, selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource');
+  console.log('MERCHANT_ROUTING_PROFILE:', merchantRoutingProfile);
+  console.log('RESOLVED_CREDENTIALS:', resolvedCredentials);
+  console.log('REQUESTED_PROCESSOR:', input.requested_processor, 'SELECTED_PROCESSOR:', selectedProcessor);
+  console.log('REQUESTED_PROCESSOR:', input.requested_processor, 'SELECTED_PROCESSOR:', selectedProcessor);
 
   let result;
 
