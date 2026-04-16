@@ -12,27 +12,27 @@ function responseKey(key: string) {
 }
 
 export async function redisSetInFlight(key: string): Promise<boolean> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return false;
   const res = await redis.set(inflightKey(key), '1', 'EX', INFLIGHT_TTL_SEC, 'NX');
   return res === 'OK';
 }
 
 export async function redisClearInFlight(key: string): Promise<void> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return;
   await redis.del(inflightKey(key));
 }
 
 export async function redisHasInFlight(key: string): Promise<boolean> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return false;
   const res = await redis.exists(inflightKey(key));
   return res === 1;
 }
 
 export async function redisSetResponse(key: string, statusCode: number, body: unknown): Promise<void> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return;
   await redis.set(
     responseKey(key),
@@ -43,7 +43,7 @@ export async function redisSetResponse(key: string, statusCode: number, body: un
 }
 
 export async function redisGetResponse(key: string): Promise<{ statusCode: number; body: unknown } | null> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return null;
   const raw = await redis.get(responseKey(key));
   if (!raw) return null;

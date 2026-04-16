@@ -22,18 +22,26 @@ export default fp(async function idempotencyPlugin(app) {
 
     if (!idemHeader || typeof idemHeader !== 'string') {
       return reply.code(400).send({
-        error: { code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Missing Idempotency-Key header' }
+        error: {
+          code: 'IDEMPOTENCY_KEY_REQUIRED',
+          message: 'Missing Idempotency-Key header'
+        }
       });
     }
 
     if (!request.auth) {
       return reply.code(401).send({
-        error: { code: 'UNAUTHORIZED', message: 'Missing auth context' }
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Missing auth context'
+        }
       });
     }
 
     const routeKey = `${request.method}:${request.url}`;
     const payloadHash = JSON.stringify(request.body ?? {});
+
+    const redisEnabled = process.env.REDIS_IDEMPOTENCY_ENABLED === 'true';
 
     const redisCached = await redisGetResponse(idemHeader);
     if (redisCached) {
@@ -41,16 +49,21 @@ export default fp(async function idempotencyPlugin(app) {
       return reply.code(redisCached.statusCode).send(redisCached.body);
     }
 
-    const memCached = getCachedResponse(idemHeader);
-    if (memCached) {
-      reply.header('x-paychainx-idempotency', 'replay-memory');
-      return reply.code(memCached.statusCode).send(memCached.body);
+    if (!redisEnabled) {
+      const memCached = getCachedResponse(idemHeader);
+      if (memCached) {
+        reply.header('x-paychainx-idempotency', 'replay-memory');
+        return reply.code(memCached.statusCode).send(memCached.body);
+      }
     }
 
     const redisInFlight = await redisHasInFlight(idemHeader);
     if (redisInFlight) {
       return reply.code(409).send({
-        error: { code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Request with this idempotency key is already being processed' }
+        error: {
+          code: 'IDEMPOTENCY_IN_PROGRESS',
+          message: 'Request with this idempotency key is already being processed'
+        }
       });
     }
 
@@ -58,7 +71,10 @@ export default fp(async function idempotencyPlugin(app) {
     if (!redisLocked) {
       if (getInFlightKey(idemHeader)) {
         return reply.code(409).send({
-          error: { code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Request with this idempotency key is already being processed' }
+          error: {
+            code: 'IDEMPOTENCY_IN_PROGRESS',
+            message: 'Request with this idempotency key is already being processed'
+          }
         });
       }
       setInFlightKey(idemHeader);
@@ -93,7 +109,10 @@ export default fp(async function idempotencyPlugin(app) {
           clearInFlightKey(idemHeader);
           void redisClearInFlight(idemHeader);
           return reply.code(409).send({
-            error: { code: 'IDEMPOTENCY_CONFLICT', message: 'Idempotency key was already used with a different request payload' }
+            error: {
+              code: 'IDEMPOTENCY_CONFLICT',
+              message: 'Idempotency key was already used with a different request payload'
+            }
           });
         }
 
@@ -111,7 +130,10 @@ export default fp(async function idempotencyPlugin(app) {
           clearInFlightKey(idemHeader);
           void redisClearInFlight(idemHeader);
           return reply.code(409).send({
-            error: { code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Request with this idempotency key is already being processed' }
+            error: {
+              code: 'IDEMPOTENCY_IN_PROGRESS',
+              message: 'Request with this idempotency key is already being processed'
+            }
           });
         }
       }

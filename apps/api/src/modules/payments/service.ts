@@ -65,10 +65,12 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     requestedProcessor: input.requested_processor ?? null
   });
 
-  console.log('MERCHANT_ROUTING_PROFILE:', merchantRoutingProfile);
-  console.log('RESOLVED_CREDENTIALS:', resolvedCredentials);
-  console.log('REQUESTED_PROCESSOR:', input.requested_processor, 'SELECTED_PROCESSOR:', selectedProcessor);
-  console.log('PQ_AUDIT_ENVELOPE:', pqAuditEnvelope);
+  if (process.env.LOG_HOT_PATH === 'true') {
+    console.log('MERCHANT_ROUTING_PROFILE:', merchantRoutingProfile);
+    console.log('RESOLVED_CREDENTIALS:', resolvedCredentials);
+    console.log('REQUESTED_PROCESSOR:', input.requested_processor, 'SELECTED_PROCESSOR:', selectedProcessor);
+    console.log('PQ_AUDIT_ENVELOPE:', pqAuditEnvelope);
+  }
   enqueueAuditEvent('payment.sale', pqAuditEnvelope);
 
   const insertedIntent = await db.insert(paymentIntents).values({
