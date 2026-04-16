@@ -6,7 +6,9 @@ import { CyberSourceAdapter } from '../../adapters/cybersource/adapter.js';
 import { BankRailAdapter } from '../../adapters/bank-rail/adapter.js';
 import { resolveProcessor } from './processor-router.js';
 import { resolveMerchantRoutingProfile } from './merchant-resolver.js';
+import { getCachedMerchantRoutingProfile, setCachedMerchantRoutingProfile } from '../cache/merchant-profile-cache.js';
 import { resolveProcessorCredentials } from './credential-resolver.js';
+import { getCachedProcessorCredentials, setCachedProcessorCredentials } from '../cache/credential-cache.js';
 import { buildPQAuditEnvelope } from '../pq/hybrid-audit.js';
 
 const processor = new CyberSourceAdapter();
@@ -35,7 +37,11 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     throw new Error('payment_method or payment_source required');
   }
 
-  const merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId);
+  let merchantRoutingProfile = getCachedMerchantRoutingProfile(auth.merchantId);
+  if (!merchantRoutingProfile) {
+    merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId);
+    setCachedMerchantRoutingProfile(merchantRoutingProfile);
+  }
   const selectedProcessor = resolveProcessor({
     amount: input.amount,
     currency: input.currency,
@@ -43,10 +49,12 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     requestedProcessor: input.requested_processor ?? merchantRoutingProfile.defaultProcessor
   });
 
-  const resolvedCredentials = await resolveProcessorCredentials(
-    auth.merchantId,
-    selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource'
-  );
+  const processorName = selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource';
+  let resolvedCredentials = getCachedProcessorCredentials(auth.merchantId, processorName);
+  if (!resolvedCredentials) {
+    resolvedCredentials = await resolveProcessorCredentials(auth.merchantId, processorName);
+    setCachedProcessorCredentials(resolvedCredentials);
+  }
 
   const pqAuditEnvelope = buildPQAuditEnvelope({
     merchantReference: input.merchant_reference,

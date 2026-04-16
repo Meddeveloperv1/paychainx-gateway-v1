@@ -1,20 +1,19 @@
 import fp from 'fastify-plugin';
 import { and, eq } from 'drizzle-orm';
 import { idempotencyKeys } from '../db/schema.js';
-import { canonicalize } from '../lib/canonicalize.js';
-import { sha256 } from '../lib/hash.js';
+import {
+  getInFlightKey,
+  setInFlightKey,
+  clearInFlightKey,
+  getCachedResponse,
+  setCachedResponse
+} from '../modules/cache/idempotency-cache.js';
 
-export default fp(async (app) => {
+export default fp(async function idempotencyPlugin(app) {
   app.decorate('enforceIdempotency', async function (request, reply) {
-    const routeKey = `${request.method}:${request.url}`;
-
-    if (!(request.method === 'POST' && request.url.startsWith('/v1/payments/'))) {
-      return null;
-    }
-
     const idemHeader = request.headers['idempotency-key'];
 
-    if (!idemHeader || Array.isArray(idemHeader)) {
+    if (!idemHeader || typeof idemHeader !== 'string') {
       return reply.code(400).send({
         error: {
           code: 'IDEMPOTENCY_KEY_REQUIRED',
@@ -23,41 +22,15 @@ export default fp(async (app) => {
       });
     }
 
-    if (!request.auth?.merchantId) {
-      return reply.code(401).send({
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Missing merchant auth context'
-        }
-      });
+    const routeKey = `${request.method}:${request.url}`;
+    const payloadHash = JSON.stringify(request.body ?? {});
+
+    const cached = getCachedResponse(idemHeader);
+    if (cached) {
+      return reply.code(cached.statusCode).send(cached.body);
     }
 
-    const requestHash = sha256(canonicalize(request.body ?? {}));
-
-    const existing = await app.db.select()
-      .from(idempotencyKeys)
-      .where(and(
-        eq(idempotencyKeys.merchantId, request.auth.merchantId),
-        eq(idempotencyKeys.idempotencyKey, idemHeader),
-        eq(idempotencyKeys.routeKey, routeKey)
-      ))
-      .limit(1);
-
-    if (existing[0]) {
-      if (existing[0].requestHash !== requestHash) {
-        return reply.code(409).send({
-          error: {
-            code: 'IDEMPOTENCY_CONFLICT',
-            message: 'Idempotency key was already used with a different request payload'
-          }
-        });
-      }
-
-      if (existing[0].status === 'completed' && existing[0].responseBody) {
-        reply.header('x-idempotent-replay', 'true');
-        return reply.code(Number(existing[0].responseCode ?? 200)).send(JSON.parse(existing[0].responseBody));
-      }
-
+    if (getInFlightKey(idemHeader)) {
       return reply.code(409).send({
         error: {
           code: 'IDEMPOTENCY_IN_PROGRESS',
@@ -66,14 +39,66 @@ export default fp(async (app) => {
       });
     }
 
-    const inserted = await app.db.insert(idempotencyKeys).values({
-      merchantId: request.auth.merchantId,
-      idempotencyKey: idemHeader,
-      routeKey,
-      requestHash,
-      status: 'processing'
-    }).returning();
+    setInFlightKey(idemHeader);
 
-    return inserted[0];
+    const originalSend = reply.send.bind(reply);
+    reply.send = function (payload) {
+      setCachedResponse(idemHeader, reply.statusCode || 200, payload);
+      clearInFlightKey(idemHeader);
+      return originalSend(payload);
+    };
+
+    try {
+      const existing = await app.db.select()
+        .from(idempotencyKeys)
+        .where(and(
+          eq(idempotencyKeys.merchantId, request.auth.merchantId),
+          eq(idempotencyKeys.idempotencyKey, idemHeader),
+          eq(idempotencyKeys.routeKey, routeKey)
+        ))
+        .limit(1);
+
+      const row = existing[0];
+
+      if (row) {
+        if (row.requestHash !== payloadHash) {
+          clearInFlightKey(idemHeader);
+          return reply.code(409).send({
+            error: {
+              code: 'IDEMPOTENCY_CONFLICT',
+              message: 'Idempotency key was already used with a different request payload'
+            }
+          });
+        }
+
+        if (row.status === 'completed' && row.responsePayload) {
+          const parsed = JSON.parse(row.responsePayload);
+          setCachedResponse(idemHeader, 200, parsed);
+          clearInFlightKey(idemHeader);
+          return reply.code(200).send(parsed);
+        }
+
+        if (row.status === 'in_progress') {
+          clearInFlightKey(idemHeader);
+          return reply.code(409).send({
+            error: {
+              code: 'IDEMPOTENCY_IN_PROGRESS',
+              message: 'Request with this idempotency key is already being processed'
+            }
+          });
+        }
+      }
+
+      await app.db.insert(idempotencyKeys).values({
+        merchantId: request.auth.merchantId,
+        idempotencyKey: idemHeader,
+        routeKey,
+        requestHash: payloadHash,
+        status: 'in_progress'
+      }).onConflictDoNothing();
+    } catch (error) {
+      clearInFlightKey(idemHeader);
+      throw error;
+    }
   });
 });
