@@ -22,11 +22,21 @@ export default fp(async function idempotencyPlugin(app) {
       });
     }
 
+    if (!request.auth) {
+      return reply.code(401).send({
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Missing auth context'
+        }
+      });
+    }
+
     const routeKey = `${request.method}:${request.url}`;
     const payloadHash = JSON.stringify(request.body ?? {});
 
     const cached = getCachedResponse(idemHeader);
     if (cached) {
+      reply.header('x-paychainx-idempotency', 'replay-memory');
       return reply.code(cached.statusCode).send(cached.body);
     }
 
@@ -42,8 +52,10 @@ export default fp(async function idempotencyPlugin(app) {
     setInFlightKey(idemHeader);
 
     const originalSend = reply.send.bind(reply);
-    reply.send = function (payload) {
-      setCachedResponse(idemHeader, reply.statusCode || 200, payload);
+    reply.send = function (payload: unknown) {
+      if ((reply.statusCode || 200) < 500) {
+        setCachedResponse(idemHeader, reply.statusCode || 200, payload);
+      }
       clearInFlightKey(idemHeader);
       return originalSend(payload);
     };
@@ -71,11 +83,12 @@ export default fp(async function idempotencyPlugin(app) {
           });
         }
 
-        if (row.status === 'completed' && row.responsePayload) {
-          const parsed = JSON.parse(row.responsePayload);
-          setCachedResponse(idemHeader, 200, parsed);
+        if (row.status === 'completed' && row.responseBody) {
+          const parsed = JSON.parse(row.responseBody);
+          setCachedResponse(idemHeader, Number(row.responseCode ?? 200), parsed);
           clearInFlightKey(idemHeader);
-          return reply.code(200).send(parsed);
+          reply.header('x-paychainx-idempotency', 'replay-db');
+          return reply.code(Number(row.responseCode ?? 200)).send(parsed);
         }
 
         if (row.status === 'in_progress') {
