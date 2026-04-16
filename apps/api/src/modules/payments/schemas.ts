@@ -4,6 +4,7 @@ export const saleRequestSchema = z.object({
   merchant_reference: z.string().min(1),
   amount: z.number().int().positive(),
   currency: z.string().length(3),
+  requested_processor: z.string().optional(),
   payment_method: z.object({
     type: z.literal('card_token'),
     token_ref: z.string().min(1)

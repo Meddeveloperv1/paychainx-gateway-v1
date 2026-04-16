@@ -59,7 +59,7 @@ const insertedIntent = await db.insert(paymentIntents).values({
 
   const attempt = insertedAttempt[0];
 
-  const selectedProcessor = resolveProcessor({ amount: input.amount, currency: input.currency, merchantId: auth.merchantId, requestedProcessor: null });
+  const selectedProcessor = resolveProcessor({ amount: input.amount, currency: input.currency, merchantId: auth.merchantId, requestedProcessor: input.requested_processor ?? null });
 
   let result;
 
