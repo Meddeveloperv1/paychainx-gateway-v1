@@ -80,7 +80,7 @@ export async function submitPQProofRequest(req: PQProofRequest): Promise<PQProof
     if (!res.ok) {
       return {
         queued: false,
-        mode: 'async-audit',
+        mode: process.env.PQ_AUDIT_ONLY === 'false' ? 'strict' : 'async-audit',
         status: 'failed',
         error: `HTTP ${res.status}`
       };
@@ -97,9 +97,27 @@ export async function submitPQProofRequest(req: PQProofRequest): Promise<PQProof
   } catch (err: any) {
     return {
       queued: false,
-      mode: 'async-audit',
+      mode: process.env.PQ_AUDIT_ONLY === 'false' ? 'strict' : 'async-audit',
       status: 'failed',
       error: err?.message || 'unknown error'
     };
   }
+}
+
+export async function submitPQProofStrict(req: PQProofRequest): Promise<PQProofSubmitResult> {
+  const health = await getPQSidecarHealth();
+  if (!health.ok) {
+    return {
+      queued: false,
+      mode: 'strict',
+      status: 'failed',
+      error: health.error || 'PQ sidecar unavailable'
+    };
+  }
+
+  const result = await submitPQProofRequest(req);
+  return {
+    ...result,
+    mode: 'strict'
+  };
 }

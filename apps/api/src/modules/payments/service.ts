@@ -12,7 +12,7 @@ import { getCachedProcessorCredentials, setCachedProcessorCredentials } from '..
 import { buildPQAuditEnvelope } from '../pq/hybrid-audit.js';
 import { buildPQProofRequest } from '../pq/proof-request.js';
 import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
-import { submitPQProofRequest } from '../pq/sidecar-client.js';
+import { submitPQProofRequest, submitPQProofStrict } from '../pq/sidecar-client.js';
 
 const processor = new CyberSourceAdapter();
 const bankRailProcessor = new BankRailAdapter();
@@ -30,6 +30,7 @@ export async function getPaymentAttempts(paymentId: string) {
 }
 
 export async function createSale(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: SaleRequest) {
+  console.log('STRICT_TEST_MERCHANT_ID', auth.merchantId);
   const normalizedPaymentMethod = input.payment_method ?? (
     input.payment_source
       ? { type: 'card_token' as const, token_ref: 'test_token_visa' }
@@ -102,24 +103,43 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     body: saleRequestPayload
   });
   enqueueAuditEvent('pq.proof.request', pqProofRequest);
-  setPQProofStatus(pqProofRequest.merchantReference, {
-    merchantReference: pqProofRequest.merchantReference,
-    payloadHash: pqProofRequest.payloadHash,
-    status: 'queued',
-    mode: process.env.PQ_AUDIT_ONLY === 'false' ? 'strict' : 'async-audit',
-    updatedAt: new Date().toISOString()
-  });
-  void submitPQProofRequest(pqProofRequest).then((res) => {
+
+  if ((merchantRoutingProfile as any).pqStrictMode) {
+    const strictResult = await submitPQProofStrict(pqProofRequest);
     setPQProofStatus(pqProofRequest.merchantReference, {
       merchantReference: pqProofRequest.merchantReference,
       payloadHash: pqProofRequest.payloadHash,
-      status: res.status,
-      mode: res.mode,
-      proofId: res.proofId,
-      error: res.error,
+      status: strictResult.status,
+      mode: strictResult.mode,
+      proofId: strictResult.proofId,
+      error: strictResult.error,
       updatedAt: new Date().toISOString()
     });
-  });
+
+    if (strictResult.status !== 'submitted') {
+      throw new Error(`PQ_STRICT_MODE_FAILED: ${strictResult.error || 'proof submission failed'}`);
+    }
+  } else {
+    setPQProofStatus(pqProofRequest.merchantReference, {
+      merchantReference: pqProofRequest.merchantReference,
+      payloadHash: pqProofRequest.payloadHash,
+      status: 'queued',
+      mode: process.env.PQ_AUDIT_ONLY === 'false' ? 'strict' : 'async-audit',
+      updatedAt: new Date().toISOString()
+    });
+
+    void submitPQProofRequest(pqProofRequest).then((res) => {
+      setPQProofStatus(pqProofRequest.merchantReference, {
+        merchantReference: pqProofRequest.merchantReference,
+        payloadHash: pqProofRequest.payloadHash,
+        status: res.status,
+        mode: res.mode,
+        proofId: res.proofId,
+        error: res.error,
+        updatedAt: new Date().toISOString()
+      });
+    });
+  }
 
   const insertedAttempt = await db.insert(paymentAttempts).values({
     paymentIntentId: intent.id,

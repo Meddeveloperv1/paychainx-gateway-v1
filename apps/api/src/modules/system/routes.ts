@@ -15,6 +15,7 @@ export async function registerSystemRoutes(app: FastifyInstance) {
       redis_idempotency_enabled: process.env.REDIS_IDEMPOTENCY_ENABLED === 'true',
       pq_enabled: process.env.PQ_ENABLED === 'true',
       pq_audit_only: process.env.PQ_AUDIT_ONLY !== 'false',
+      pq_strict_mode: process.env.PQ_STRICT_MODE === 'true',
       audit_queue_enabled: process.env.AUDIT_QUEUE_ENABLED === 'true',
       audit_queue_depth: getAuditQueueDepth(),
       default_processor: 'cybersource',
