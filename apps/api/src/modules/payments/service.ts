@@ -7,6 +7,7 @@ import { BankRailAdapter } from '../../adapters/bank-rail/adapter.js';
 import { resolveProcessor } from './processor-router.js';
 import { resolveMerchantRoutingProfile } from './merchant-resolver.js';
 import { resolveProcessorCredentials } from './credential-resolver.js';
+import { buildPQAuditEnvelope } from '../pq/hybrid-audit.js';
 
 const processor = new CyberSourceAdapter();
 const bankRailProcessor = new BankRailAdapter();
@@ -25,16 +26,42 @@ export async function getPaymentAttempts(paymentId: string) {
 
 export async function createSale(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: SaleRequest) {
   const normalizedPaymentMethod = input.payment_method ?? (
-  input.payment_source
-    ? { type: 'card_token', token_ref: 'test_token_visa' }
-    : undefined
-);
+    input.payment_source
+      ? { type: 'card_token' as const, token_ref: 'test_token_visa' }
+      : undefined
+  );
 
-if (!normalizedPaymentMethod) {
-  throw new Error('payment_method or payment_source required');
-}
+  if (!normalizedPaymentMethod) {
+    throw new Error('payment_method or payment_source required');
+  }
 
-const insertedIntent = await db.insert(paymentIntents).values({
+  const merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId);
+  const selectedProcessor = resolveProcessor({
+    amount: input.amount,
+    currency: input.currency,
+    merchantId: auth.merchantId,
+    requestedProcessor: input.requested_processor ?? merchantRoutingProfile.defaultProcessor
+  });
+
+  const resolvedCredentials = await resolveProcessorCredentials(
+    auth.merchantId,
+    selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource'
+  );
+
+  const pqAuditEnvelope = buildPQAuditEnvelope({
+    merchantReference: input.merchant_reference,
+    amount: input.amount,
+    currency: input.currency,
+    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource',
+    requestedProcessor: input.requested_processor ?? null
+  });
+
+  console.log('MERCHANT_ROUTING_PROFILE:', merchantRoutingProfile);
+  console.log('RESOLVED_CREDENTIALS:', resolvedCredentials);
+  console.log('REQUESTED_PROCESSOR:', input.requested_processor, 'SELECTED_PROCESSOR:', selectedProcessor);
+  console.log('PQ_AUDIT_ENVELOPE:', pqAuditEnvelope);
+
+  const insertedIntent = await db.insert(paymentIntents).values({
     merchantId: auth.merchantId,
     merchantReference: input.merchant_reference,
     amount: input.amount,
@@ -45,37 +72,25 @@ const insertedIntent = await db.insert(paymentIntents).values({
     customerRef: input.customer?.customer_ref,
     customerEmail: input.customer?.email,
     description: input.description,
-    processor: 'cybersource'
+    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource'
   }).returning();
 
   const intent = insertedIntent[0];
+
+  const saleRequestPayload = { input, pq_audit: pqAuditEnvelope };
 
   const insertedAttempt = await db.insert(paymentAttempts).values({
     paymentIntentId: intent.id,
     merchantId: auth.merchantId,
     action: 'sale',
-    processor: 'cybersource',
+    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource',
     status: 'pending',
-    requestPayload: JSON.stringify(input)
+    requestPayload: JSON.stringify(saleRequestPayload)
   }).returning();
 
   const attempt = insertedAttempt[0];
 
-  const merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId);
-  const selectedProcessor = resolveProcessor({
-    amount: input.amount,
-    currency: input.currency,
-    merchantId: auth.merchantId,
-    requestedProcessor: input.requested_processor ?? merchantRoutingProfile.defaultProcessor
-  });
-  const resolvedCredentials = await resolveProcessorCredentials(auth.merchantId, selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource');
-  console.log('MERCHANT_ROUTING_PROFILE:', merchantRoutingProfile);
-  console.log('RESOLVED_CREDENTIALS:', resolvedCredentials);
-  console.log('REQUESTED_PROCESSOR:', input.requested_processor, 'SELECTED_PROCESSOR:', selectedProcessor);
-  console.log('REQUESTED_PROCESSOR:', input.requested_processor, 'SELECTED_PROCESSOR:', selectedProcessor);
-
   let result;
-
   if (selectedProcessor === 'bank_rail') {
     result = await bankRailProcessor.sale({
       merchantReference: input.merchant_reference,
@@ -86,9 +101,9 @@ const insertedIntent = await db.insert(paymentIntents).values({
     });
   } else {
     result = await processor.sale({
-    merchantReference: input.merchant_reference,
-    amount: input.amount,
-    currency: input.currency,
+      merchantReference: input.merchant_reference,
+      amount: input.amount,
+      currency: input.currency,
       tokenRef: normalizedPaymentMethod.token_ref,
       customerEmail: input.customer?.email,
       description: input.description
@@ -120,7 +135,7 @@ const insertedIntent = await db.insert(paymentIntents).values({
     status: result.success ? result.status : 'failed',
     amount: intent.amount,
     currency: intent.currency,
-    processor: 'cybersource',
+    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource',
     processor_transaction_id: result.processorTransactionId ?? null,
     payment_attempt_id: attempt.id,
     created_at: intent.createdAt,
@@ -165,14 +180,7 @@ export async function capturePayment(auth: NonNullable<import('fastify').Fastify
     })
     .where(eq(paymentIntents.id, input.payment_id));
 
-  return {
-    payment_id: input.payment_id,
-    status: result.success ? 'captured' : 'failed',
-    processor: 'cybersource',
-    processor_transaction_id: result.processorTransactionId ?? null,
-    payment_attempt_id: attempt.id,
-    error_message: result.errorMessage ?? null
-  };
+  return result;
 }
 
 export async function voidPayment(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: VoidRequest) {
@@ -210,14 +218,7 @@ export async function voidPayment(auth: NonNullable<import('fastify').FastifyReq
     })
     .where(eq(paymentIntents.id, input.payment_id));
 
-  return {
-    payment_id: input.payment_id,
-    status: result.success ? 'voided' : 'failed',
-    processor: 'cybersource',
-    processor_transaction_id: result.processorTransactionId ?? null,
-    payment_attempt_id: attempt.id,
-    error_message: result.errorMessage ?? null
-  };
+  return result;
 }
 
 export async function refundPayment(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: RefundRequest) {
@@ -257,12 +258,5 @@ export async function refundPayment(auth: NonNullable<import('fastify').FastifyR
     })
     .where(eq(paymentIntents.id, input.payment_id));
 
-  return {
-    payment_id: input.payment_id,
-    status: result.success ? 'refunded' : 'failed',
-    processor: 'cybersource',
-    processor_transaction_id: result.processorTransactionId ?? null,
-    payment_attempt_id: attempt.id,
-    error_message: result.errorMessage ?? null
-  };
+  return result;
 }
