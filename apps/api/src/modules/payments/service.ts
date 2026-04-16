@@ -1,18 +1,18 @@
 import { db } from '../../db/client.js';
-import { paymentIntents, paymentAttempts } from '../../db/schema.js';
+import { paymentIntents, paymentAttempts, proofVault } from '../../db/schema.js';
 import { desc, eq } from 'drizzle-orm';
 import { SaleRequest, CaptureRequest, VoidRequest, RefundRequest } from './schemas.js';
 import { CyberSourceAdapter } from '../../adapters/cybersource/adapter.js';
 import { BankRailAdapter } from '../../adapters/bank-rail/adapter.js';
 import { resolveProcessor } from './processor-router.js';
 import { resolveMerchantRoutingProfile } from './merchant-resolver.js';
-import { getCachedMerchantRoutingProfile, setCachedMerchantRoutingProfile } from '../cache/merchant-profile-cache.js';
 import { resolveProcessorCredentials } from './credential-resolver.js';
+import { getCachedMerchantRoutingProfile, setCachedMerchantRoutingProfile } from '../cache/merchant-profile-cache.js';
 import { getCachedProcessorCredentials, setCachedProcessorCredentials } from '../cache/credential-cache.js';
 import { buildPQAuditEnvelope } from '../pq/hybrid-audit.js';
 import { buildPQProofRequest } from '../pq/proof-request.js';
-import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
 import { submitPQProofRequest, submitPQProofStrict } from '../pq/sidecar-client.js';
+import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
 
 const processor = new CyberSourceAdapter();
 const bankRailProcessor = new BankRailAdapter();
@@ -30,7 +30,6 @@ export async function getPaymentAttempts(paymentId: string) {
 }
 
 export async function createSale(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: SaleRequest) {
-  console.log('STRICT_TEST_MERCHANT_ID', auth.merchantId);
   const normalizedPaymentMethod = input.payment_method ?? (
     input.payment_source
       ? { type: 'card_token' as const, token_ref: 'test_token_visa' }
@@ -46,6 +45,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId);
     setCachedMerchantRoutingProfile(merchantRoutingProfile);
   }
+
   const selectedProcessor = resolveProcessor({
     amount: input.amount,
     currency: input.currency,
@@ -53,29 +53,26 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     requestedProcessor: input.requested_processor ?? merchantRoutingProfile.defaultProcessor
   });
 
-  console.log('STRICT_PROFILE', auth.merchantId, merchantRoutingProfile);
   const processorName = selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource';
+
   let resolvedCredentials = getCachedProcessorCredentials(auth.merchantId, processorName);
   if (!resolvedCredentials) {
     resolvedCredentials = await resolveProcessorCredentials(auth.merchantId, processorName);
     setCachedProcessorCredentials(resolvedCredentials);
   }
 
+  if (process.env.LOG_HOT_PATH === 'true') {
+    console.log('STRICT_PROFILE', auth.merchantId, merchantRoutingProfile);
+    console.log('RESOLVED_CREDENTIALS', resolvedCredentials);
+  }
+
   const pqAuditEnvelope = buildPQAuditEnvelope({
     merchantReference: input.merchant_reference,
     amount: input.amount,
     currency: input.currency,
-    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource',
+    processor: processorName,
     requestedProcessor: input.requested_processor ?? null
   });
-
-  if (process.env.LOG_HOT_PATH === 'true') {
-    console.log('MERCHANT_ROUTING_PROFILE:', merchantRoutingProfile);
-    console.log('RESOLVED_CREDENTIALS:', resolvedCredentials);
-    console.log('REQUESTED_PROCESSOR:', input.requested_processor, 'SELECTED_PROCESSOR:', selectedProcessor);
-    console.log('PQ_AUDIT_ENVELOPE:', pqAuditEnvelope);
-  }
-  enqueueAuditEvent('payment.sale', pqAuditEnvelope);
 
   const insertedIntent = await db.insert(paymentIntents).values({
     merchantId: auth.merchantId,
@@ -88,25 +85,40 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     customerRef: input.customer?.customer_ref,
     customerEmail: input.customer?.email,
     description: input.description,
-    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource'
+    processor: processorName
   }).returning();
 
   const intent = insertedIntent[0];
-
   const saleRequestPayload = { input, pq_audit: pqAuditEnvelope };
+
+  const insertedAttempt = await db.insert(paymentAttempts).values({
+    paymentIntentId: intent.id,
+    merchantId: auth.merchantId,
+    action: 'sale',
+    processor: processorName,
+    status: 'pending',
+    requestPayload: JSON.stringify(saleRequestPayload)
+  }).returning();
+
+  const attempt = insertedAttempt[0];
+
   const pqProofRequest = buildPQProofRequest({
     merchantId: auth.merchantId,
     merchantReference: input.merchant_reference,
+    paymentIntentId: intent.id,
+    paymentAttemptId: attempt.id,
     amount: input.amount,
     currency: input.currency,
-    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource',
+    processor: processorName,
     requestedProcessor: input.requested_processor ?? null,
     body: saleRequestPayload
   });
+
   enqueueAuditEvent('pq.proof.request', pqProofRequest);
 
   if ((merchantRoutingProfile as any).pqStrictMode) {
     const strictResult = await submitPQProofStrict(pqProofRequest);
+
     setPQProofStatus(pqProofRequest.merchantReference, {
       merchantReference: pqProofRequest.merchantReference,
       payloadHash: pqProofRequest.payloadHash,
@@ -116,6 +128,27 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
       error: strictResult.error,
       updatedAt: new Date().toISOString()
     });
+
+    if (strictResult.proofId) {
+      await db.insert(proofVault).values({
+        proofId: strictResult.proofId,
+        paymentAttemptId: attempt.id,
+        merchantId: auth.merchantId,
+        merchantReference: pqProofRequest.merchantReference,
+        proofHash: pqProofRequest.payloadHash,
+        hashAlgorithm: 'sha256',
+        signature: null,
+        signatureAlgorithm: null,
+        proofStatus: strictResult.status,
+        createdAt: new Date(),
+        verifiedAt: null,
+        policySnapshot: { pq_mode: 'strict' },
+        requestFingerprint: pqProofRequest.payloadHash,
+        processorResponseFingerprint: null,
+        sidecarVersion: 'stub-v1',
+        evidenceBundleUri: null
+      });
+    }
 
     if (strictResult.status !== 'submitted') {
       throw new Error(`PQ_STRICT_MODE_FAILED: ${strictResult.error || 'proof submission failed'}`);
@@ -129,7 +162,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
       updatedAt: new Date().toISOString()
     });
 
-    void submitPQProofRequest(pqProofRequest).then((res) => {
+    void submitPQProofRequest(pqProofRequest).then(async (res) => {
       setPQProofStatus(pqProofRequest.merchantReference, {
         merchantReference: pqProofRequest.merchantReference,
         payloadHash: pqProofRequest.payloadHash,
@@ -139,19 +172,29 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
         error: res.error,
         updatedAt: new Date().toISOString()
       });
-    });
+
+      if (res.proofId) {
+        await db.insert(proofVault).values({
+          proofId: res.proofId,
+          paymentAttemptId: attempt.id,
+          merchantId: auth.merchantId,
+          merchantReference: pqProofRequest.merchantReference,
+          proofHash: pqProofRequest.payloadHash,
+          hashAlgorithm: 'sha256',
+          signature: null,
+          signatureAlgorithm: null,
+          proofStatus: res.status,
+          createdAt: new Date(),
+          verifiedAt: null,
+          policySnapshot: { pq_mode: res.mode },
+          requestFingerprint: pqProofRequest.payloadHash,
+          processorResponseFingerprint: null,
+          sidecarVersion: 'stub-v1',
+          evidenceBundleUri: null
+        });
+      }
+    }).catch(() => {});
   }
-
-  const insertedAttempt = await db.insert(paymentAttempts).values({
-    paymentIntentId: intent.id,
-    merchantId: auth.merchantId,
-    action: 'sale',
-    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource',
-    status: 'pending',
-    requestPayload: JSON.stringify(saleRequestPayload)
-  }).returning();
-
-  const attempt = insertedAttempt[0];
 
   let result;
   if (selectedProcessor === 'bank_rail') {
@@ -198,7 +241,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     status: result.success ? result.status : 'failed',
     amount: intent.amount,
     currency: intent.currency,
-    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource',
+    processor: processorName,
     processor_transaction_id: result.processorTransactionId ?? null,
     payment_attempt_id: attempt.id,
     created_at: intent.createdAt,
