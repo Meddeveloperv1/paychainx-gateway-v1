@@ -10,7 +10,9 @@ import { getCachedMerchantRoutingProfile, setCachedMerchantRoutingProfile } from
 import { resolveProcessorCredentials } from './credential-resolver.js';
 import { getCachedProcessorCredentials, setCachedProcessorCredentials } from '../cache/credential-cache.js';
 import { buildPQAuditEnvelope } from '../pq/hybrid-audit.js';
+import { buildPQProofRequest } from '../pq/proof-request.js';
 import { enqueueAuditEvent } from '../audit/audit-queue.js';
+import { submitPQProofRequest } from '../pq/sidecar-client.js';
 
 const processor = new CyberSourceAdapter();
 const bankRailProcessor = new BankRailAdapter();
@@ -90,6 +92,17 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
   const intent = insertedIntent[0];
 
   const saleRequestPayload = { input, pq_audit: pqAuditEnvelope };
+  const pqProofRequest = buildPQProofRequest({
+    merchantId: auth.merchantId,
+    merchantReference: input.merchant_reference,
+    amount: input.amount,
+    currency: input.currency,
+    processor: selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource',
+    requestedProcessor: input.requested_processor ?? null,
+    body: saleRequestPayload
+  });
+  enqueueAuditEvent('pq.proof.request', pqProofRequest);
+  void submitPQProofRequest(pqProofRequest);
 
   const insertedAttempt = await db.insert(paymentAttempts).values({
     paymentIntentId: intent.id,

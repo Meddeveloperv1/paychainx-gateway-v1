@@ -1,8 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { getAuditQueueDepth } from '../audit/audit-queue.js';
+import { getPQSidecarHealth } from '../pq/sidecar-client.js';
 
 export async function registerSystemRoutes(app: FastifyInstance) {
   app.get('/v1/system/status', async (_request, reply) => {
+    const pqSidecar = await getPQSidecarHealth();
     return reply.send({
       ok: true,
       gateway_fast_mode: process.env.GATEWAY_FAST_MODE === 'true',
@@ -15,7 +17,8 @@ export async function registerSystemRoutes(app: FastifyInstance) {
       audit_queue_enabled: process.env.AUDIT_QUEUE_ENABLED === 'true',
       audit_queue_depth: getAuditQueueDepth(),
       default_processor: 'cybersource',
-      bank_rail_enabled: false
+      bank_rail_enabled: false,
+      pq_sidecar: pqSidecar
     });
   });
 }
