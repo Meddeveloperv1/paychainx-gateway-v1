@@ -53,6 +53,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     requestedProcessor: input.requested_processor ?? merchantRoutingProfile.defaultProcessor
   });
 
+  console.log('STRICT_PROFILE', auth.merchantId, merchantRoutingProfile);
   const processorName = selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource';
   let resolvedCredentials = getCachedProcessorCredentials(auth.merchantId, processorName);
   if (!resolvedCredentials) {
