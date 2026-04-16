@@ -8,18 +8,21 @@ export async function registerSystemRoutes(app: FastifyInstance) {
 
     return reply.send({
       ok: true,
+      build_label: process.env.BUILD_LABEL ?? null,
+      build_version: process.env.BUILD_VERSION ?? null,
+      active_branch: process.env.ACTIVE_BRANCH ?? null,
       gateway_fast_mode: process.env.GATEWAY_FAST_MODE === 'true',
       route_cache_enabled: process.env.ROUTE_CACHE_ENABLED === 'true',
       credential_cache_enabled: process.env.CREDENTIAL_CACHE_ENABLED === 'true',
       idempotency_cache_enabled: process.env.IDEMPOTENCY_CACHE_ENABLED === 'true',
       redis_idempotency_enabled: process.env.REDIS_IDEMPOTENCY_ENABLED === 'true',
+      default_processor: process.env.DEFAULT_PROCESSOR ?? 'cybersource',
+      bank_rail_enabled: process.env.BANK_RAIL_ENABLED === 'true',
       pq_enabled: process.env.PQ_ENABLED === 'true',
       pq_audit_only: process.env.PQ_AUDIT_ONLY !== 'false',
       pq_strict_mode: process.env.PQ_STRICT_MODE === 'true',
       audit_queue_enabled: process.env.AUDIT_QUEUE_ENABLED === 'true',
       audit_queue_depth: getAuditQueueDepth(),
-      default_processor: 'cybersource',
-      bank_rail_enabled: false,
       pq_sidecar: pqSidecar
     });
   });
