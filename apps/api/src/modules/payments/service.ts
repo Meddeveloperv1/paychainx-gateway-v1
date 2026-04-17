@@ -15,6 +15,7 @@ import { submitPQProofRequest, submitPQProofStrict } from '../pq/sidecar-client.
 import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
 import { enqueueProofJob } from '../proofs/queue.js';
 import { enqueueWebhookEvent } from '../webhooks/service.js';
+import { resolveStoredTokenToPaymentMethod } from '../tokens/service.js';
 
 const processor = new CyberSourceAdapter();
 const bankRailProcessor = new BankRailAdapter();
@@ -32,11 +33,23 @@ export async function getPaymentAttempts(paymentId: string) {
 }
 
 export async function createSale(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: SaleRequest) {
-  const normalizedPaymentMethod = input.payment_method ?? (
-    input.payment_source
-      ? { type: 'card_token' as const, token_ref: 'test_token_visa' }
-      : undefined
-  );
+  let normalizedPaymentMethod = input.payment_method;
+
+  if (!normalizedPaymentMethod && input.payment_source) {
+    if (input.payment_source.type === 'sandbox_card') {
+      normalizedPaymentMethod = {
+        type: 'card_token' as const,
+        token_ref: 'test_token_visa'
+      };
+    }
+
+    if (input.payment_source.type === 'stored_token') {
+      normalizedPaymentMethod = await resolveStoredTokenToPaymentMethod(
+        auth,
+        input.payment_source.token_id
+      );
+    }
+  }
 
   if (!normalizedPaymentMethod) {
     throw new Error('payment_method or payment_source required');
@@ -407,11 +420,23 @@ export async function refundPayment(auth: NonNullable<import('fastify').FastifyR
 }
 
 export async function createAuth(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: any) {
-  const normalizedPaymentMethod = input.payment_method ?? (
-    input.payment_source
-      ? { type: 'card_token' as const, token_ref: 'test_token_visa' }
-      : undefined
-  );
+  let normalizedPaymentMethod = input.payment_method;
+
+  if (!normalizedPaymentMethod && input.payment_source) {
+    if (input.payment_source.type === 'sandbox_card') {
+      normalizedPaymentMethod = {
+        type: 'card_token' as const,
+        token_ref: 'test_token_visa'
+      };
+    }
+
+    if (input.payment_source.type === 'stored_token') {
+      normalizedPaymentMethod = await resolveStoredTokenToPaymentMethod(
+        auth,
+        input.payment_source.token_id
+      );
+    }
+  }
 
   if (!normalizedPaymentMethod) {
     throw new Error('payment_method or payment_source required');
