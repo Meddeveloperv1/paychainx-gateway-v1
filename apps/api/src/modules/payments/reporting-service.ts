@@ -1,6 +1,6 @@
 import { db } from '../../db/client.js';
-import { paymentIntents, paymentAttempts } from '../../db/schema.js';
-import { eq, and, desc } from 'drizzle-orm';
+import { paymentIntents } from '../../db/schema.js';
+import { eq, and, desc, gte, lte } from 'drizzle-orm';
 
 export async function listTransactions(
   merchantId: string,
@@ -9,12 +9,14 @@ export async function listTransactions(
     processor?: string;
     limit?: number;
     offset?: number;
+    date_from?: string;
+    date_to?: string;
   }
 ) {
-  const limit = Math.min(query.limit ?? 50, 100);
+  const limit = Math.min(query.limit ?? 50, 1000);
   const offset = query.offset ?? 0;
 
-  const conditions = [eq(paymentIntents.merchantId, merchantId)];
+  const conditions: any[] = [eq(paymentIntents.merchantId, merchantId)];
 
   if (query.status) {
     conditions.push(eq(paymentIntents.status, query.status));
@@ -22,6 +24,14 @@ export async function listTransactions(
 
   if (query.processor) {
     conditions.push(eq(paymentIntents.processor, query.processor));
+  }
+
+  if (query.date_from) {
+    conditions.push(gte(paymentIntents.createdAt, new Date(query.date_from)));
+  }
+
+  if (query.date_to) {
+    conditions.push(lte(paymentIntents.createdAt, new Date(query.date_to)));
   }
 
   const rows = await db.select()
@@ -38,13 +48,43 @@ export async function listTransactions(
     currency: row.currency,
     status: row.status,
     processor: row.processor,
+    customer_ref: row.customerRef,
+    customer_email: row.customerEmail,
+    description: row.description,
     created_at: row.createdAt
   }));
 }
 
-export async function getTransactionSummary(merchantId: string) {
-  const rows = await db.select().from(paymentIntents)
-    .where(eq(paymentIntents.merchantId, merchantId));
+export async function getTransactionSummary(
+  merchantId: string,
+  query?: {
+    status?: string;
+    processor?: string;
+    date_from?: string;
+    date_to?: string;
+  }
+) {
+  const conditions: any[] = [eq(paymentIntents.merchantId, merchantId)];
+
+  if (query?.status) {
+    conditions.push(eq(paymentIntents.status, query.status));
+  }
+
+  if (query?.processor) {
+    conditions.push(eq(paymentIntents.processor, query.processor));
+  }
+
+  if (query?.date_from) {
+    conditions.push(gte(paymentIntents.createdAt, new Date(query.date_from)));
+  }
+
+  if (query?.date_to) {
+    conditions.push(lte(paymentIntents.createdAt, new Date(query.date_to)));
+  }
+
+  const rows = await db.select()
+    .from(paymentIntents)
+    .where(and(...conditions));
 
   let total = 0;
   let succeeded = 0;
@@ -62,4 +102,35 @@ export async function getTransactionSummary(merchantId: string) {
     failed_amount: failed,
     total_transactions: rows.length
   };
+}
+
+export function transactionsToCsv(rows: Array<Record<string, unknown>>) {
+  const headers = [
+    'id',
+    'merchant_reference',
+    'amount',
+    'currency',
+    'status',
+    'processor',
+    'customer_ref',
+    'customer_email',
+    'description',
+    'created_at'
+  ];
+
+  const escapeCsv = (value: unknown) => {
+    if (value === null || value === undefined) return '';
+    const s = String(value);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  const lines = [
+    headers.join(','),
+    ...rows.map((row) => headers.map((h) => escapeCsv(row[h])).join(','))
+  ];
+
+  return lines.join('\n');
 }
