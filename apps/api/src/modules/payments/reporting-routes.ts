@@ -34,7 +34,7 @@ export async function registerReportingRoutes(app: FastifyInstance) {
   app.get('/v1/transactions/export', { preHandler: [app.authenticate] }, async (request, reply) => {
     const query = request.query as any;
 
-    const rows = await listTransactions(request.auth!.merchantId, {
+    const result = await listTransactions(request.auth!.merchantId, {
       status: query.status,
       processor: query.processor,
       limit: query.limit ? Number(query.limit) : 1000,
@@ -43,7 +43,7 @@ export async function registerReportingRoutes(app: FastifyInstance) {
       date_to: query.date_to
     });
 
-    const csv = transactionsToCsv(rows);
+    const csv = transactionsToCsv(result.data);
 
     reply
       .header('content-type', 'text/csv; charset=utf-8')
