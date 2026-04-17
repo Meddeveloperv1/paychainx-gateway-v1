@@ -2,6 +2,7 @@ import { db } from '../../db/client.js';
 import { proofJobs, proofVault } from '../../db/schema.js';
 import { eq, asc } from 'drizzle-orm';
 import { submitPQProofRequest, submitPQProofStrict } from '../pq/sidecar-client.js';
+import { storeEvidenceBundle } from './storage.js';
 
 export async function enqueueProofJob(input: {
   merchantId: string;
@@ -83,6 +84,18 @@ export async function processOneProofJob() {
       return { processed: true, ok: false };
     }
 
+    const evidence = await storeEvidenceBundle({
+      proofId: res.proofId,
+      merchantReference: job.merchantReference,
+      payload: {
+        proof_job: job,
+        proof_request: payload,
+        sidecar_response: res,
+        policy_snapshot: { pq_mode: job.mode },
+        generated_at: new Date().toISOString()
+      }
+    });
+
     await db.insert(proofVault).values({
       proofId: res.proofId,
       paymentAttemptId: job.paymentAttemptId,
@@ -99,7 +112,7 @@ export async function processOneProofJob() {
       requestFingerprint: job.payloadHash,
       processorResponseFingerprint: null,
       sidecarVersion: 'stub-v1',
-      evidenceBundleUri: null
+      evidenceBundleUri: evidence.uri
     });
 
     await markProofJobCompleted(job.id, nextAttempts);
