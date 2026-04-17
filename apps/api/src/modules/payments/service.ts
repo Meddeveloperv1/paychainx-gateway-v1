@@ -465,6 +465,19 @@ export async function createAuth(auth: NonNullable<import('fastify').FastifyRequ
     throw new Error('payment_method or payment_source required');
   }
 
+  const risk = evaluateRisk({
+    amount: input.amount,
+    currency: input.currency,
+    paymentMethodType: normalizedPaymentMethod.type,
+    customerEmail: (input as any).customer_email ?? null,
+    customerRef: null
+  });
+
+  if (risk.decision == 'block') {
+    throw new Error(`RISK_BLOCKED: ${risk.flags.join(',') || 'blocked'}`);
+  }
+
+
   let merchantRoutingProfile: any = getCachedMerchantRoutingProfile(auth.merchantId);
   if (!merchantRoutingProfile) {
     merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId) as any;
@@ -589,7 +602,8 @@ export async function createAuth(auth: NonNullable<import('fastify').FastifyRequ
     error_message: result.success ? null : normalizedFailure?.error_message ?? null,
     error_code: result.success ? null : normalizedFailure?.error_code ?? null,
     retryable: result.success ? null : normalizedFailure?.retryable ?? null,
-    error_category: result.success ? null : normalizedFailure?.error_category ?? null
+    error_category: result.success ? null : normalizedFailure?.error_category ?? null,
+    risk
   };
 }
 
