@@ -1,21 +1,17 @@
 import { db } from '../../db/client.js';
 import { paymentIntents } from '../../db/schema.js';
-import { eq, and, desc, gte, lte } from 'drizzle-orm';
+import { eq, and, desc, gte, lte, count } from 'drizzle-orm';
 
-export async function listTransactions(
-  merchantId: string,
-  query: {
-    status?: string;
-    processor?: string;
-    limit?: number;
-    offset?: number;
-    date_from?: string;
-    date_to?: string;
-  }
-) {
-  const limit = Math.min(query.limit ?? 50, 1000);
-  const offset = query.offset ?? 0;
+type TransactionQuery = {
+  status?: string;
+  processor?: string;
+  limit?: number;
+  offset?: number;
+  date_from?: string;
+  date_to?: string;
+};
 
+function buildConditions(merchantId: string, query: TransactionQuery) {
   const conditions: any[] = [eq(paymentIntents.merchantId, merchantId)];
 
   if (query.status) {
@@ -34,6 +30,25 @@ export async function listTransactions(
     conditions.push(lte(paymentIntents.createdAt, new Date(query.date_to)));
   }
 
+  return conditions;
+}
+
+export async function listTransactions(
+  merchantId: string,
+  query: TransactionQuery
+) {
+  const limit = Math.min(query.limit ?? 50, 1000);
+  const offset = query.offset ?? 0;
+
+  const conditions = buildConditions(merchantId, query);
+
+  const totalRows = await db
+    .select({ total: count() })
+    .from(paymentIntents)
+    .where(and(...conditions));
+
+  const total_count = Number(totalRows[0]?.total ?? 0);
+
   const rows = await db.select()
     .from(paymentIntents)
     .where(and(...conditions))
@@ -41,7 +56,7 @@ export async function listTransactions(
     .limit(limit)
     .offset(offset);
 
-  return rows.map((row) => ({
+  const data = rows.map((row) => ({
     id: row.id,
     merchant_reference: row.merchantReference,
     amount: row.amount,
@@ -53,6 +68,20 @@ export async function listTransactions(
     description: row.description,
     created_at: row.createdAt
   }));
+
+  const next_offset = offset + data.length;
+  const has_more = next_offset < total_count;
+
+  return {
+    data,
+    pagination: {
+      total_count,
+      limit,
+      offset,
+      has_more,
+      next_offset: has_more ? next_offset : null
+    }
+  };
 }
 
 export async function getTransactionSummary(
@@ -64,23 +93,7 @@ export async function getTransactionSummary(
     date_to?: string;
   }
 ) {
-  const conditions: any[] = [eq(paymentIntents.merchantId, merchantId)];
-
-  if (query?.status) {
-    conditions.push(eq(paymentIntents.status, query.status));
-  }
-
-  if (query?.processor) {
-    conditions.push(eq(paymentIntents.processor, query.processor));
-  }
-
-  if (query?.date_from) {
-    conditions.push(gte(paymentIntents.createdAt, new Date(query.date_from)));
-  }
-
-  if (query?.date_to) {
-    conditions.push(lte(paymentIntents.createdAt, new Date(query.date_to)));
-  }
+  const conditions = buildConditions(merchantId, query ?? {});
 
   const rows = await db.select()
     .from(paymentIntents)
