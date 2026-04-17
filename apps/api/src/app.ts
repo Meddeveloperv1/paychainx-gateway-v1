@@ -14,6 +14,7 @@ import { startProofWorker } from './modules/proofs/worker.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { registerPaymentRoutes } from './modules/payments/routes.js';
+import { registerReportingRoutes } from './modules/payments/reporting-routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { registerTokenRoutes } from './modules/tokens/routes.js';
 
@@ -60,6 +61,7 @@ export async function buildApp() {
   await app.register(healthRoutes, { prefix: '/v1' });
   await app.register(authRoutes, { prefix: '/v1' });
   await registerPaymentRoutes(app);
+  await registerReportingRoutes(app);
   await registerTokenRoutes(app);
   await app.register(adminRoutes, { prefix: '/v1' });
 
