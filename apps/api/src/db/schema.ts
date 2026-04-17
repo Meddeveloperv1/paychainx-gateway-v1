@@ -1,11 +1,12 @@
 import {
   pgTable,
-  uuid,
   text,
-  timestamp,
+  uuid,
   integer,
+  timestamp,
   boolean,
   bigint,
+  jsonb,
   uniqueIndex
 } from 'drizzle-orm/pg-core';
 
@@ -211,4 +212,25 @@ export const webhookDeliveries = pgTable('webhook_deliveries', {
   deliveredAt: timestamp('delivered_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const paymentTokens = pgTable('payment_tokens', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tokenId: text('token_id').notNull().unique(),
+  customerRef: text('customer_ref'),
+  merchantId: uuid('merchant_id').notNull(),
+  processor: text('processor').notNull().default('cybersource'),
+  processorTokenRef: text('processor_token_ref').notNull(),
+  fingerprintSha256: text('fingerprint_sha256').notNull(),
+  brand: text('brand'),
+  last4: text('last4'),
+  expMonth: integer('exp_month'),
+  expYear: integer('exp_year'),
+  billingName: text('billing_name'),
+  billingZip: text('billing_zip'),
+  status: text('status').notNull().default('active'),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true })
 });
