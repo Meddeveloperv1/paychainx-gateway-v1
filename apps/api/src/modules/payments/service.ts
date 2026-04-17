@@ -288,6 +288,10 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     }
   });
 
+  const normalizedFailure = result.success
+    ? null
+    : normalizeProcessorFailure(result.errorMessage ?? null);
+
   return {
     id: intent.id,
     merchant_reference: intent.merchantReference,
@@ -298,7 +302,10 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     processor_transaction_id: result.processorTransactionId ?? null,
     payment_attempt_id: attempt.id,
     created_at: intent.createdAt,
-    error_message: result.errorMessage ?? null
+    error_message: result.success ? null : normalizedFailure?.error_message ?? null,
+    error_code: result.success ? null : normalizedFailure?.error_code ?? null,
+    retryable: result.success ? null : normalizedFailure?.retryable ?? null,
+    error_category: result.success ? null : normalizedFailure?.error_category ?? null
   };
 }
 
