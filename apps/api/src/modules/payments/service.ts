@@ -13,6 +13,7 @@ import { buildPQAuditEnvelope } from '../pq/hybrid-audit.js';
 import { buildPQProofRequest } from '../pq/proof-request.js';
 import { submitPQProofRequest, submitPQProofStrict } from '../pq/sidecar-client.js';
 import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
+import { enqueueProofJob } from '../proofs/queue.js';
 
 const processor = new CyberSourceAdapter();
 const bankRailProcessor = new BankRailAdapter();
@@ -158,42 +159,54 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
       merchantReference: pqProofRequest.merchantReference,
       payloadHash: pqProofRequest.payloadHash,
       status: 'queued',
-      mode: process.env.PQ_AUDIT_ONLY === 'false' ? 'strict' : 'async-audit',
+      mode: 'async-audit',
       updatedAt: new Date().toISOString()
     });
 
-    void submitPQProofRequest(pqProofRequest).then(async (res) => {
-      setPQProofStatus(pqProofRequest.merchantReference, {
+    if (process.env.PROOF_QUEUE_ENABLED === 'true') {
+      await enqueueProofJob({
+        merchantId: auth.merchantId,
         merchantReference: pqProofRequest.merchantReference,
+        paymentIntentId: intent.id,
+        paymentAttemptId: attempt.id,
+        payload: pqProofRequest,
         payloadHash: pqProofRequest.payloadHash,
-        status: res.status,
-        mode: res.mode,
-        proofId: res.proofId,
-        error: res.error,
-        updatedAt: new Date().toISOString()
+        mode: 'async-audit'
       });
-
-      if (res.proofId) {
-        await db.insert(proofVault).values({
-          proofId: res.proofId,
-          paymentAttemptId: attempt.id,
-          merchantId: auth.merchantId,
+    } else {
+      void submitPQProofRequest(pqProofRequest).then(async (res) => {
+        setPQProofStatus(pqProofRequest.merchantReference, {
           merchantReference: pqProofRequest.merchantReference,
-          proofHash: pqProofRequest.payloadHash,
-          hashAlgorithm: 'sha256',
-          signature: null,
-          signatureAlgorithm: null,
-          proofStatus: res.status,
-          createdAt: new Date(),
-          verifiedAt: null,
-          policySnapshot: JSON.stringify({ pq_mode: res.mode }),
-          requestFingerprint: pqProofRequest.payloadHash,
-          processorResponseFingerprint: null,
-          sidecarVersion: 'stub-v1',
-          evidenceBundleUri: null
+          payloadHash: pqProofRequest.payloadHash,
+          status: res.status,
+          mode: res.mode,
+          proofId: res.proofId,
+          error: res.error,
+          updatedAt: new Date().toISOString()
         });
-      }
-    }).catch(() => {});
+
+        if (res.proofId) {
+          await db.insert(proofVault).values({
+            proofId: res.proofId,
+            paymentAttemptId: attempt.id,
+            merchantId: auth.merchantId,
+            merchantReference: pqProofRequest.merchantReference,
+            proofHash: pqProofRequest.payloadHash,
+            hashAlgorithm: 'sha256',
+            signature: null,
+            signatureAlgorithm: null,
+            proofStatus: res.status,
+            createdAt: new Date(),
+            verifiedAt: null,
+            policySnapshot: JSON.stringify({ pq_mode: res.mode }),
+            requestFingerprint: pqProofRequest.payloadHash,
+            processorResponseFingerprint: null,
+            sidecarVersion: 'stub-v1',
+            evidenceBundleUri: null
+          });
+        }
+      }).catch(() => {});
+    }
   }
 
   let result;

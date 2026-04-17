@@ -3,6 +3,7 @@ import {
   uuid,
   text,
   timestamp,
+  integer,
   boolean,
   bigint,
   uniqueIndex
@@ -142,3 +143,24 @@ export const proofVault = pgTable('proof_vault', {
   verifiedAt: timestamp('verified_at')
 });
 
+
+export const proofJobs = pgTable('proof_jobs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  merchantId: uuid('merchant_id').notNull(),
+  merchantReference: text('merchant_reference').notNull(),
+  paymentIntentId: uuid('payment_intent_id'),
+  paymentAttemptId: uuid('payment_attempt_id').notNull(),
+
+  payload: text('payload').notNull(),
+  payloadHash: text('payload_hash').notNull(),
+
+  mode: text('mode').notNull(),
+  status: text('status').notNull().default('queued'),
+
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});

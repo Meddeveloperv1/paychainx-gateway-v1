@@ -17,7 +17,7 @@ export async function resolveMerchantRoutingProfile(merchantId: string): Promise
   return {
     merchantId,
     defaultProcessor: 'cybersource',
-    bankRailEnabled: false,
+    bankRailEnabled: process.env.BANK_RAIL_ENABLED === 'true',
     pqEnabled: process.env.PQ_ENABLED === 'true',
     pqStrictMode: strictMerchantIds.has(merchantId)
   };

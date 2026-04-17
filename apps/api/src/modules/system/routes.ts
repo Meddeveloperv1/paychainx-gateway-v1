@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { getAuditQueueDepth, getPQProofStatus } from '../audit/audit-queue.js';
 import { getPQSidecarHealth } from '../pq/sidecar-client.js';
+import { getProofQueueMetrics } from '../proofs/metrics.js';
 
 export async function registerSystemRoutes(app: FastifyInstance) {
   app.get('/v1/system/status', async (_request, reply) => {
@@ -24,6 +25,14 @@ export async function registerSystemRoutes(app: FastifyInstance) {
       audit_queue_enabled: process.env.AUDIT_QUEUE_ENABLED === 'true',
       audit_queue_depth: getAuditQueueDepth(),
       pq_sidecar: pqSidecar
+    });
+  });
+
+  app.get('/v1/system/queue', async (_request, reply) => {
+    const metrics = await getProofQueueMetrics();
+    return reply.send({
+      ok: true,
+      queue_metrics: metrics
     });
   });
 
