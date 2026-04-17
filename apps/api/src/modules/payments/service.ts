@@ -16,6 +16,7 @@ import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
 import { enqueueProofJob } from '../proofs/queue.js';
 import { enqueueWebhookEvent } from '../webhooks/service.js';
 import { normalizeProcessorFailure } from './processor-error-normalizer.js';
+import { evaluateRisk } from './risk-service.js';
 import { resolveStoredTokenToPaymentMethod } from '../tokens/service.js';
 
 const processor = new CyberSourceAdapter();
@@ -55,6 +56,19 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
   if (!normalizedPaymentMethod) {
     throw new Error('payment_method or payment_source required');
   }
+
+  const risk = evaluateRisk({
+    amount: input.amount,
+    currency: input.currency,
+    paymentMethodType: normalizedPaymentMethod.type,
+    customerEmail: input.customer?.email ?? null,
+    customerRef: input.customer?.customer_ref ?? null
+  });
+
+  if (risk.decision === 'block') {
+    throw new Error(`RISK_BLOCKED: ${risk.flags.join(',') || 'blocked'}`);
+  }
+
 
   let merchantRoutingProfile: any = getCachedMerchantRoutingProfile(auth.merchantId);
   if (!merchantRoutingProfile) {
@@ -305,7 +319,8 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     error_message: result.success ? null : normalizedFailure?.error_message ?? null,
     error_code: result.success ? null : normalizedFailure?.error_code ?? null,
     retryable: result.success ? null : normalizedFailure?.retryable ?? null,
-    error_category: result.success ? null : normalizedFailure?.error_category ?? null
+    error_category: result.success ? null : normalizedFailure?.error_category ?? null,
+    risk
   };
 }
 
