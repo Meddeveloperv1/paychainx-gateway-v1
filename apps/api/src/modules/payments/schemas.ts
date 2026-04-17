@@ -42,3 +42,35 @@ export type SaleRequest = z.infer<typeof saleRequestSchema>;
 export type CaptureRequest = z.infer<typeof captureRequestSchema>;
 export type VoidRequest = z.infer<typeof voidRequestSchema>;
 export type RefundRequest = z.infer<typeof refundRequestSchema>;
+
+export const AuthRequestSchema = {
+  type: 'object',
+  required: ['merchant_reference', 'amount', 'currency', 'payment_source'],
+  properties: {
+    merchant_reference: { type: 'string' },
+    amount: { type: 'integer' },
+    currency: { type: 'string' },
+    payment_source: {
+      type: 'object',
+      required: ['type'],
+      properties: {
+        type: { type: 'string' }
+      }
+    },
+    customer_email: { type: 'string' },
+    description: { type: 'string' },
+    requested_processor: { type: 'string' }
+  }
+} as const;
+
+export type AuthRequest = {
+  merchant_reference: string;
+  amount: number;
+  currency: string;
+  payment_source: {
+    type: string;
+  };
+  customer_email?: string;
+  description?: string;
+  requested_processor?: string;
+};

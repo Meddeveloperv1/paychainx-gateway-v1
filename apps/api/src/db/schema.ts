@@ -164,3 +164,23 @@ export const proofJobs = pgTable('proof_jobs', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });
+
+export const merchantCapabilities = pgTable('merchant_capabilities', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  merchantId: uuid('merchant_id').notNull().unique(),
+
+  allowedCurrencies: text('allowed_currencies').notNull().default('USD'),
+  allowedChannels: text('allowed_channels').notNull().default('ecom'),
+
+  defaultProcessor: text('default_processor').notNull().default('cybersource'),
+
+  cybersourceEnabled: boolean('cybersource_enabled').notNull().default(true),
+  bankRailEnabled: boolean('bank_rail_enabled').notNull().default(false),
+
+  pqEnabled: boolean('pq_enabled').notNull().default(true),
+  pqStrictMode: boolean('pq_strict_mode').notNull().default(false),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});

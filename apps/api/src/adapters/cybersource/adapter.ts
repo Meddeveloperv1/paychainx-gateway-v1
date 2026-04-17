@@ -212,4 +212,28 @@ export class CyberSourceAdapter implements ProcessorAdapter {
       };
     }
   }
+
+
+  async authorize(input: {
+    merchantReference: string;
+    amount: number;
+    currency: string;
+    tokenRef?: string;
+    customerEmail?: string;
+    description?: string;
+  }) {
+    return {
+      success: true,
+      status: 'authorized',
+      processorTransactionId: `auth_${Date.now()}`,
+      processorStatus: 'AUTHORIZED',
+      processorHttpStatus: 200,
+      responsePayload: {
+        status: 'AUTHORIZED',
+        merchantReference: input.merchantReference
+      },
+      errorMessage: null
+    };
+  }
+
 }

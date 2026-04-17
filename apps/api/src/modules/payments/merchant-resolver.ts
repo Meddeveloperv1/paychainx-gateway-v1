@@ -1,24 +1,27 @@
+import { getMerchantCapabilities } from './merchant-capabilities.js';
+
 export type MerchantRoutingProfile = {
   merchantId: string;
   defaultProcessor: 'cybersource' | 'bank_rail';
   bankRailEnabled: boolean;
   pqEnabled: boolean;
   pqStrictMode: boolean;
+  allowedCurrencies: string[];
+  allowedChannels: string[];
+  cybersourceEnabled: boolean;
 };
 
 export async function resolveMerchantRoutingProfile(merchantId: string): Promise<MerchantRoutingProfile> {
-  const strictMerchantIds = new Set(
-    (process.env.PQ_STRICT_MERCHANT_IDS || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-  );
+  const caps = await getMerchantCapabilities(merchantId);
 
   return {
     merchantId,
-    defaultProcessor: 'cybersource',
-    bankRailEnabled: process.env.BANK_RAIL_ENABLED === 'true',
-    pqEnabled: process.env.PQ_ENABLED === 'true',
-    pqStrictMode: strictMerchantIds.has(merchantId)
+    defaultProcessor: caps.defaultProcessor,
+    bankRailEnabled: caps.bankRailEnabled,
+    pqEnabled: caps.pqEnabled,
+    pqStrictMode: caps.pqStrictMode,
+    allowedCurrencies: caps.allowedCurrencies,
+    allowedChannels: caps.allowedChannels,
+    cybersourceEnabled: caps.cybersourceEnabled
   };
 }

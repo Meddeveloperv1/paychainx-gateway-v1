@@ -41,15 +41,25 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     throw new Error('payment_method or payment_source required');
   }
 
-  let merchantRoutingProfile = getCachedMerchantRoutingProfile(auth.merchantId);
+  let merchantRoutingProfile: any = getCachedMerchantRoutingProfile(auth.merchantId);
   if (!merchantRoutingProfile) {
-    merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId);
+    merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId) as any;
     setCachedMerchantRoutingProfile(merchantRoutingProfile);
+  }
+
+  const normalizedCurrency = input.currency.toUpperCase();
+
+  if (!merchantRoutingProfile.allowedCurrencies.includes(normalizedCurrency)) {
+    throw new Error(`UNSUPPORTED_CURRENCY_FOR_MERCHANT: ${normalizedCurrency}`);
+  }
+
+  if (!merchantRoutingProfile.cybersourceEnabled && merchantRoutingProfile.defaultProcessor === 'cybersource') {
+    throw new Error('PROCESSOR_DISABLED_FOR_MERCHANT: cybersource');
   }
 
   const selectedProcessor = resolveProcessor({
     amount: input.amount,
-    currency: input.currency,
+    currency: normalizedCurrency,
     merchantId: auth.merchantId,
     requestedProcessor: input.requested_processor ?? merchantRoutingProfile.defaultProcessor
   });
@@ -70,7 +80,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
   const pqAuditEnvelope = buildPQAuditEnvelope({
     merchantReference: input.merchant_reference,
     amount: input.amount,
-    currency: input.currency,
+    currency: normalizedCurrency,
     processor: processorName,
     requestedProcessor: input.requested_processor ?? null
   });
@@ -79,7 +89,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     merchantId: auth.merchantId,
     merchantReference: input.merchant_reference,
     amount: input.amount,
-    currency: input.currency,
+    currency: normalizedCurrency,
     status: 'created',
     paymentMethodType: normalizedPaymentMethod.type,
     paymentTokenRef: normalizedPaymentMethod.token_ref,
@@ -109,7 +119,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     paymentIntentId: intent.id,
     paymentAttemptId: attempt.id,
     amount: input.amount,
-    currency: input.currency,
+    currency: normalizedCurrency,
     processor: processorName,
     requestedProcessor: input.requested_processor ?? null,
     body: saleRequestPayload
@@ -214,7 +224,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     result = await bankRailProcessor.sale({
       merchantReference: input.merchant_reference,
       amount: input.amount,
-      currency: input.currency,
+      currency: normalizedCurrency,
       customerEmail: input.customer?.email,
       description: input.description
     });
@@ -222,7 +232,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     result = await processor.sale({
       merchantReference: input.merchant_reference,
       amount: input.amount,
-      currency: input.currency,
+      currency: normalizedCurrency,
       tokenRef: normalizedPaymentMethod.token_ref,
       customerEmail: input.customer?.email,
       description: input.description
@@ -253,7 +263,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     merchant_reference: intent.merchantReference,
     status: result.success ? result.status : 'failed',
     amount: intent.amount,
-    currency: intent.currency,
+    currency: normalizedCurrency,
     processor: processorName,
     processor_transaction_id: result.processorTransactionId ?? null,
     payment_attempt_id: attempt.id,
@@ -379,3 +389,121 @@ export async function refundPayment(auth: NonNullable<import('fastify').FastifyR
 
   return result;
 }
+
+export async function createAuth(auth: NonNullable<import('fastify').FastifyRequest['auth']>, input: any) {
+  const normalizedPaymentMethod = input.payment_method ?? (
+    input.payment_source
+      ? { type: 'card_token' as const, token_ref: 'test_token_visa' }
+      : undefined
+  );
+
+  if (!normalizedPaymentMethod) {
+    throw new Error('payment_method or payment_source required');
+  }
+
+  let merchantRoutingProfile: any = getCachedMerchantRoutingProfile(auth.merchantId);
+  if (!merchantRoutingProfile) {
+    merchantRoutingProfile = await resolveMerchantRoutingProfile(auth.merchantId) as any;
+    setCachedMerchantRoutingProfile(merchantRoutingProfile);
+  }
+
+  const normalizedCurrency = input.currency.toUpperCase();
+
+  if (!merchantRoutingProfile.allowedCurrencies.includes(normalizedCurrency)) {
+    throw new Error(`UNSUPPORTED_CURRENCY_FOR_MERCHANT: ${normalizedCurrency}`);
+  }
+
+  const selectedProcessor = resolveProcessor({
+    amount: input.amount,
+    currency: normalizedCurrency,
+    merchantId: auth.merchantId,
+    requestedProcessor: input.requested_processor ?? merchantRoutingProfile.defaultProcessor
+  });
+
+  const processorName = selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource';
+
+  const insertedIntent = await db.insert(paymentIntents).values({
+    merchantId: auth.merchantId,
+    merchantReference: input.merchant_reference,
+    amount: input.amount,
+    currency: normalizedCurrency,
+    status: 'created',
+    paymentMethodType: normalizedPaymentMethod.type,
+    paymentTokenRef: normalizedPaymentMethod.token_ref,
+    customerEmail: input.customer_email,
+    description: input.description,
+    processor: processorName
+  }).returning();
+
+  const intent = insertedIntent[0];
+
+  const insertedAttempt = await db.insert(paymentAttempts).values({
+    paymentIntentId: intent.id,
+    merchantId: auth.merchantId,
+    action: 'auth',
+    processor: processorName,
+    status: 'pending',
+    requestPayload: JSON.stringify(input)
+  }).returning();
+
+  const attempt = insertedAttempt[0];
+
+  let result;
+  if (selectedProcessor === 'bank_rail') {
+    result = {
+      success: false,
+      status: 'failed',
+      errorMessage: 'BANK_RAIL_AUTH_NOT_IMPLEMENTED'
+    };
+  } else {
+    if (typeof (processor as any).authorize === 'function') {
+      result = await (processor as any).authorize({
+        merchantReference: input.merchant_reference,
+        amount: input.amount,
+        currency: normalizedCurrency,
+        tokenRef: normalizedPaymentMethod.token_ref,
+        customerEmail: input.customer_email,
+        description: input.description
+      });
+    } else {
+      result = {
+        success: false,
+        status: 'failed',
+        errorMessage: 'PROCESSOR_AUTH_NOT_IMPLEMENTED'
+      };
+    }
+  }
+
+  await db.update(paymentAttempts)
+    .set({
+      status: result.success ? 'succeeded' : 'failed',
+      processorTransactionId: result.processorTransactionId ?? null,
+      processorStatus: result.processorStatus ?? null,
+      processorHttpStatus: result.processorHttpStatus ? String(result.processorHttpStatus) : null,
+      responsePayload: JSON.stringify(result.responsePayload ?? result),
+      errorMessage: result.errorMessage ?? null,
+      updatedAt: new Date()
+    })
+    .where(eq(paymentAttempts.id, attempt.id));
+
+  await db.update(paymentIntents)
+    .set({
+      status: result.success ? 'authorized' : 'failed',
+      updatedAt: new Date()
+    })
+    .where(eq(paymentIntents.id, intent.id));
+
+  return {
+    id: intent.id,
+    merchant_reference: intent.merchantReference,
+    status: result.success ? 'authorized' : 'failed',
+    amount: intent.amount,
+    currency: intent.currency,
+    processor: processorName,
+    processor_transaction_id: result.processorTransactionId ?? null,
+    payment_attempt_id: attempt.id,
+    created_at: intent.createdAt,
+    error_message: result.errorMessage ?? null
+  };
+}
+

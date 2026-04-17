@@ -7,10 +7,11 @@ import idempotencyPlugin from './plugins/idempotency.js';
 import timingPlugin from './plugins/timing.js';
 import { registerSystemRoutes } from './modules/system/routes.js';
 import { registerProofRoutes } from './modules/proofs/routes.js';
+import { registerMerchantCapabilityRoutes } from './modules/payments/capability-routes.js';
 import { startProofWorker } from './modules/proofs/worker.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
-import { paymentRoutes } from './modules/payments/routes.js';
+import { registerPaymentRoutes } from './modules/payments/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 
 export async function buildApp() {
@@ -49,10 +50,11 @@ export async function buildApp() {
   await app.register(idempotencyPlugin);
   await registerSystemRoutes(app);
   await registerProofRoutes(app);
+  await registerMerchantCapabilityRoutes(app);
   startProofWorker();
   await app.register(healthRoutes, { prefix: '/v1' });
   await app.register(authRoutes, { prefix: '/v1' });
-  await app.register(paymentRoutes, { prefix: '/v1' });
+  await registerPaymentRoutes(app);
   await app.register(adminRoutes, { prefix: '/v1' });
 
   return app;
