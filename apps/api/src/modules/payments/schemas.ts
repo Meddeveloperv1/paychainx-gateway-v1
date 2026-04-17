@@ -9,9 +9,15 @@ export const saleRequestSchema = z.object({
     type: z.literal('card_token'),
     token_ref: z.string().min(1)
   }).optional(),
-  payment_source: z.object({
-    type: z.literal('sandbox_card')
-  }).optional(),
+  payment_source: z.union([
+    z.object({
+      type: z.literal('sandbox_card')
+    }),
+    z.object({
+      type: z.literal('stored_token'),
+      token_id: z.string().min(1)
+    })
+  ]).optional(),
   customer: z.object({
     customer_ref: z.string().optional(),
     email: z.string().email().optional()
