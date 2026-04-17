@@ -1,5 +1,5 @@
 import { db } from '../../db/client.js';
-import { paymentIntents } from '../../db/schema.js';
+import { paymentIntents, paymentAttempts } from '../../db/schema.js';
 import { eq, and, desc, gte, lte, count } from 'drizzle-orm';
 
 type TransactionQuery = {
@@ -146,4 +146,32 @@ export function transactionsToCsv(rows: Array<Record<string, unknown>>) {
   ];
 
   return lines.join('\n');
+}
+
+
+export async function getTransactionAttempts(
+  merchantId: string,
+  paymentId: string
+) {
+  const rows = await db.select()
+    .from(paymentAttempts)
+    .where(and(
+      eq(paymentAttempts.merchantId, merchantId),
+      eq(paymentAttempts.paymentIntentId, paymentId)
+    ))
+    .orderBy(desc(paymentAttempts.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    payment_intent_id: row.paymentIntentId,
+    action: row.action,
+    processor: row.processor,
+    status: row.status,
+    processor_transaction_id: row.processorTransactionId,
+    processor_status: row.processorStatus,
+    processor_http_status: row.processorHttpStatus,
+    error_message: row.errorMessage,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt
+  }));
 }
