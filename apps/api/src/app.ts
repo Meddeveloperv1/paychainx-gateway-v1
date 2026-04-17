@@ -15,6 +15,7 @@ import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { registerPaymentRoutes } from './modules/payments/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
+import { registerTokenRoutes } from './modules/tokens/routes.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -59,6 +60,7 @@ export async function buildApp() {
   await app.register(healthRoutes, { prefix: '/v1' });
   await app.register(authRoutes, { prefix: '/v1' });
   await registerPaymentRoutes(app);
+  await registerTokenRoutes(app);
   await app.register(adminRoutes, { prefix: '/v1' });
 
   return app;
