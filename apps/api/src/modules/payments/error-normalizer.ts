@@ -43,6 +43,11 @@ export function normalizeGatewayError(err: unknown): GatewayErrorShape {
     return makeError(502, 'pq_strict_mode_failed', `PQ strict mode failed: ${detail}`, true, 'processor');
   }
 
+  if (message.startsWith('RISK_BLOCKED:')) {
+    const detail = message.split(':').slice(1).join(':').trim() || 'blocked';
+    return makeError(403, 'risk_blocked', `Blocked by risk rules: ${detail}`, false, 'security');
+  }
+
   if (message === 'TOKEN_NOT_FOUND') {
     return makeError(404, 'token_not_found', 'Stored payment token was not found', false, 'validation');
   }
