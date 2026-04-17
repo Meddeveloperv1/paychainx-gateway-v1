@@ -21,12 +21,14 @@ export async function createWebhookEndpoint(input: {
   eventTypes: string[];
   signingSecret?: string | null;
 }) {
+  const generatedSecret = input.signingSecret ?? crypto.randomBytes(32).toString('hex');
+
   const inserted = await db.insert(webhookEndpoints).values({
     merchantId: input.merchantId,
     url: input.url,
     eventTypes: input.eventTypes.join(','),
     isEnabled: true,
-    signingSecret: input.signingSecret ?? null,
+    signingSecret: generatedSecret,
     createdAt: nowDate(),
     updatedAt: nowDate()
   }).returning();
@@ -78,8 +80,9 @@ export async function enqueueWebhookEvent(input: {
   }
 }
 
-function buildSignature(secret: string, payload: string) {
-  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
+function buildSignature(secret: string, payload: string, timestamp: string) {
+  const signed = `${timestamp}.${payload}`;
+  return crypto.createHmac('sha256', secret).update(signed).digest('hex');
 }
 
 export async function fetchNextQueuedDelivery() {
@@ -143,8 +146,10 @@ export async function processOneWebhookDelivery() {
   }
 
   const attempts = (job.attempts ?? 0) + 1;
-  const secret = endpoint.signingSecret || process.env.WEBHOOK_SIGNING_SECRET || '';
-  const signature = buildSignature(secret, job.payload);
+  const secret = endpoint.signingSecret;
+  if (!secret) throw new Error('WEBHOOK_SECRET_MISSING');
+  const timestamp = Date.now().toString();
+  const signature = buildSignature(secret, job.payload, timestamp);
 
   try {
     const res = await fetch(endpoint.url, {
@@ -153,7 +158,8 @@ export async function processOneWebhookDelivery() {
         'content-type': 'application/json',
         'x-paychainx-event-type': job.eventType,
         'x-paychainx-event-id': job.eventId,
-        'x-paychainx-signature': signature
+        'x-paychainx-signature': signature,
+        'x-paychainx-timestamp': timestamp
       },
       body: job.payload
     });

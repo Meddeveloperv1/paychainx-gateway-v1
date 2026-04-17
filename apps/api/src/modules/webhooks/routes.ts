@@ -20,7 +20,12 @@ export async function registerWebhookRoutes(app: FastifyInstance) {
       eventTypes: Array.isArray(body.event_types) ? body.event_types : ['payment.succeeded', 'payment.failed', 'proof.generated'],
       signingSecret: body.signing_secret ?? null
     });
-    return reply.send({ ok: true, endpoint });
+
+    return reply.send({
+      ok: true,
+      endpoint,
+      signing_secret: endpoint.signingSecret
+    });
   });
 
   app.post('/v1/webhooks/:id/disable', { preHandler: [app.authenticate] }, async (request, reply) => {
