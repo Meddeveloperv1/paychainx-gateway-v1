@@ -15,6 +15,7 @@ import { submitPQProofRequest, submitPQProofStrict } from '../pq/sidecar-client.
 import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
 import { enqueueProofJob } from '../proofs/queue.js';
 import { enqueueWebhookEvent } from '../webhooks/service.js';
+import { normalizeProcessorFailure } from './processor-error-normalizer.js';
 import { resolveStoredTokenToPaymentMethod } from '../tokens/service.js';
 
 const processor = new CyberSourceAdapter();
@@ -549,6 +550,10 @@ export async function createAuth(auth: NonNullable<import('fastify').FastifyRequ
     }
   });
 
+  const normalizedFailure = result.success
+    ? null
+    : normalizeProcessorFailure(result.errorMessage ?? null);
+
   return {
     id: intent.id,
     merchant_reference: intent.merchantReference,
@@ -559,7 +564,10 @@ export async function createAuth(auth: NonNullable<import('fastify').FastifyRequ
     processor_transaction_id: result.processorTransactionId ?? null,
     payment_attempt_id: attempt.id,
     created_at: intent.createdAt,
-    error_message: result.errorMessage ?? null
+    error_message: result.success ? null : normalizedFailure?.error_message ?? null,
+    error_code: result.success ? null : normalizedFailure?.error_code ?? null,
+    retryable: result.success ? null : normalizedFailure?.retryable ?? null,
+    error_category: result.success ? null : normalizedFailure?.error_category ?? null
   };
 }
 
