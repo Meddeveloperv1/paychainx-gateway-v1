@@ -184,3 +184,31 @@ export const merchantCapabilities = pgTable('merchant_capabilities', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });
+
+export const webhookEndpoints = pgTable('webhook_endpoints', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  merchantId: uuid('merchant_id').notNull(),
+  url: text('url').notNull(),
+  eventTypes: text('event_types').notNull().default('payment.succeeded,payment.failed,proof.generated'),
+  isEnabled: boolean('is_enabled').notNull().default(true),
+  signingSecret: text('signing_secret'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  merchantId: uuid('merchant_id').notNull(),
+  endpointId: uuid('endpoint_id').notNull(),
+  eventType: text('event_type').notNull(),
+  eventId: text('event_id').notNull(),
+  payload: text('payload').notNull(),
+  status: text('status').notNull().default('queued'),
+  attempts: integer('attempts').notNull().default(0),
+  lastHttpStatus: integer('last_http_status'),
+  lastError: text('last_error'),
+  nextAttemptAt: timestamp('next_attempt_at').defaultNow(),
+  deliveredAt: timestamp('delivered_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});

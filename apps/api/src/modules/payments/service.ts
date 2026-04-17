@@ -14,6 +14,7 @@ import { buildPQProofRequest } from '../pq/proof-request.js';
 import { submitPQProofRequest, submitPQProofStrict } from '../pq/sidecar-client.js';
 import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
 import { enqueueProofJob } from '../proofs/queue.js';
+import { enqueueWebhookEvent } from '../webhooks/service.js';
 
 const processor = new CyberSourceAdapter();
 const bankRailProcessor = new BankRailAdapter();

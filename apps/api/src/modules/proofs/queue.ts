@@ -3,6 +3,7 @@ import { proofJobs, proofVault } from '../../db/schema.js';
 import { eq, asc } from 'drizzle-orm';
 import { submitPQProofRequest, submitPQProofStrict } from '../pq/sidecar-client.js';
 import { storeEvidenceBundle } from './storage.js';
+import { enqueueWebhookEvent } from '../webhooks/service.js';
 
 export async function enqueueProofJob(input: {
   merchantId: string;
@@ -115,7 +116,20 @@ export async function processOneProofJob() {
       evidenceBundleUri: evidence.uri
     });
 
-    await markProofJobCompleted(job.id, nextAttempts);
+    await enqueueWebhookEvent({
+      merchantId: job.merchantId,
+      eventType: 'proof.generated',
+      eventId: res.proofId,
+      payload: {
+        proof_id: res.proofId,
+        merchant_reference: job.merchantReference,
+        payment_attempt_id: job.paymentAttemptId,
+        proof_status: res.status,
+        evidence_bundle_uri: evidence.uri
+      }
+    });
+
+        await markProofJobCompleted(job.id, nextAttempts);
     return { processed: true, ok: true, proofId: res.proofId };
   } catch (err) {
     if (nextAttempts < 3) {

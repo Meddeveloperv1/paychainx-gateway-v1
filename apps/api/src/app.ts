@@ -8,6 +8,8 @@ import timingPlugin from './plugins/timing.js';
 import { registerSystemRoutes } from './modules/system/routes.js';
 import { registerProofRoutes } from './modules/proofs/routes.js';
 import { registerMerchantCapabilityRoutes } from './modules/payments/capability-routes.js';
+import { registerWebhookRoutes } from './modules/webhooks/routes.js';
+import { startWebhookWorker } from './modules/webhooks/worker.js';
 import { startProofWorker } from './modules/proofs/worker.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
@@ -51,7 +53,9 @@ export async function buildApp() {
   await registerSystemRoutes(app);
   await registerProofRoutes(app);
   await registerMerchantCapabilityRoutes(app);
+  await registerWebhookRoutes(app);
   startProofWorker();
+  startWebhookWorker();
   await app.register(healthRoutes, { prefix: '/v1' });
   await app.register(authRoutes, { prefix: '/v1' });
   await registerPaymentRoutes(app);
