@@ -259,6 +259,21 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     })
     .where(eq(paymentIntents.id, intent.id));
 
+  await enqueueWebhookEvent({
+    merchantId: auth.merchantId,
+    eventType: result.success ? 'payment.succeeded' : 'payment.failed',
+    eventId: attempt.id,
+    payload: {
+      payment_id: intent.id,
+      payment_attempt_id: attempt.id,
+      merchant_reference: intent.merchantReference,
+      status: result.success ? 'succeeded' : 'failed',
+      amount: intent.amount,
+      currency: intent.currency,
+      processor: processorName
+    }
+  });
+
   return {
     id: intent.id,
     merchant_reference: intent.merchantReference,
@@ -493,6 +508,21 @@ export async function createAuth(auth: NonNullable<import('fastify').FastifyRequ
       updatedAt: new Date()
     })
     .where(eq(paymentIntents.id, intent.id));
+
+  await enqueueWebhookEvent({
+    merchantId: auth.merchantId,
+    eventType: result.success ? 'payment.succeeded' : 'payment.failed',
+    eventId: attempt.id,
+    payload: {
+      payment_id: intent.id,
+      payment_attempt_id: attempt.id,
+      merchant_reference: intent.merchantReference,
+      status: result.success ? 'succeeded' : 'failed',
+      amount: intent.amount,
+      currency: intent.currency,
+      processor: processorName
+    }
+  });
 
   return {
     id: intent.id,
