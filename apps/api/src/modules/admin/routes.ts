@@ -154,4 +154,17 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
 
+
+  app.post('/admin/api-keys', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = (request.body as any) ?? {};
+    const { createAdminApiKey } = await import('./service.js');
+    const result = await createAdminApiKey(request.auth!.merchantId, body.label);
+
+    if (!result) {
+      return reply.code(500).send({ ok: false, error: 'API_KEY_CREATE_FAILED' });
+    }
+
+    return reply.send({ ok: true, data: result });
+  });
+
 }
