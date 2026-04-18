@@ -1,6 +1,7 @@
+import crypto from 'node:crypto';
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '../../db/client.js';
-import { merchants, apiKeys, paymentIntents, paymentAttempts, proofVault, webhookDeliveries } from '../../db/schema.js';
+import { merchants, apiKeys, paymentIntents, paymentAttempts, proofVault, webhookDeliveries, webhookEndpoints } from '../../db/schema.js';
 import { generateApiKey, hashApiKey } from '../../lib/api-key.js';
 
 export async function createMerchant(input: { name: string }) {
@@ -237,4 +238,137 @@ export async function searchAdminPayments(
       next_offset: has_more ? next_offset : null
     }
   };
+}
+
+
+function makeApiKeyPlain() {
+  return `pkx_${crypto.randomBytes(24).toString('hex')}`;
+}
+
+function sha256(input: string) {
+  return crypto.createHash('sha256').update(input).digest('hex');
+}
+
+function makeWebhookSecret() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+export async function listAdminApiKeys(merchantId: string) {
+  const rows = await db.select()
+    .from(apiKeys)
+    .where(eq(apiKeys.merchantId, merchantId))
+    .orderBy(desc(apiKeys.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.label,
+    status: row.status,
+    last_used_at: row.lastUsedAt,
+    created_at: row.createdAt,
+    expires_at: row.expiresAt
+  }));
+}
+
+export async function disableAdminApiKey(merchantId: string, keyId: string) {
+  const updated = await db.update(apiKeys)
+    .set({ status: 'disabled' })
+    .where(and(
+      eq(apiKeys.id, keyId),
+      eq(apiKeys.merchantId, merchantId)
+    ))
+    .returning();
+
+  return updated[0] ?? null;
+}
+
+export async function rotateAdminApiKey(merchantId: string, keyId: string) {
+  const plain = makeApiKeyPlain();
+  const hash = sha256(plain);
+
+  const updated = await db.update(apiKeys)
+    .set({
+      keyHash: hash,
+      status: 'active'
+    })
+    .where(and(
+      eq(apiKeys.id, keyId),
+      eq(apiKeys.merchantId, merchantId)
+    ))
+    .returning();
+
+  const row = updated[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    label: row.label,
+    status: row.status,
+    created_at: row.createdAt,
+    rotated_key: plain
+  };
+}
+
+export async function listAdminWebhookEndpoints(merchantId: string) {
+  const rows = await db.select()
+    .from(webhookEndpoints)
+    .where(eq(webhookEndpoints.merchantId, merchantId))
+    .orderBy(desc(webhookEndpoints.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    url: row.url,
+    event_types: row.eventTypes,
+    is_enabled: row.isEnabled,
+    has_signing_secret: !!row.signingSecret,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt
+  }));
+}
+
+export async function rotateAdminWebhookSecret(merchantId: string, endpointId: string) {
+  const secret = makeWebhookSecret();
+
+  const updated = await db.update(webhookEndpoints)
+    .set({
+      signingSecret: secret,
+      updatedAt: new Date()
+    })
+    .where(and(
+      eq(webhookEndpoints.id, endpointId),
+      eq(webhookEndpoints.merchantId, merchantId)
+    ))
+    .returning();
+
+  const row = updated[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    signing_secret: secret,
+    updated_at: row.updatedAt
+  };
+}
+
+export async function replayAdminWebhookDelivery(merchantId: string, deliveryId: string) {
+  const rows = await db.select()
+    .from(webhookDeliveries)
+    .where(and(
+      eq(webhookDeliveries.id, deliveryId),
+      eq(webhookDeliveries.merchantId, merchantId)
+    ))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+
+  const updated = await db.update(webhookDeliveries)
+    .set({
+      status: 'queued',
+      nextAttemptAt: new Date(),
+      updatedAt: new Date()
+    })
+    .where(eq(webhookDeliveries.id, deliveryId))
+    .returning();
+
+  return updated[0] ?? null;
 }
