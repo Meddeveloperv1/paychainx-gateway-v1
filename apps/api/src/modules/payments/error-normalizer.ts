@@ -43,6 +43,20 @@ export function normalizeGatewayError(err: unknown): GatewayErrorShape {
     return makeError(502, 'pq_strict_mode_failed', `PQ strict mode failed: ${detail}`, true, 'processor');
   }
 
+  if (message === 'TERMINAL_ID_REQUIRED') {
+    return makeError(400, 'terminal_id_required', 'terminal_id is required for terminal channel', false, 'validation');
+  }
+
+  if (message.startsWith('CHANNEL_DISABLED:')) {
+    const channel = message.split(':').slice(1).join(':').trim();
+    return makeError(403, 'channel_disabled', `Channel disabled: ${channel}`, false, 'configuration');
+  }
+
+  if (message.startsWith('UNSUPPORTED_CHANNEL:')) {
+    const channel = message.split(':').slice(1).join(':').trim();
+    return makeError(400, 'unsupported_channel', `Unsupported channel: ${channel}`, false, 'validation');
+  }
+
   if (message.startsWith('RISK_BLOCKED:')) {
     const detail = message.split(':').slice(1).join(':').trim() || 'blocked';
     return makeError(403, 'risk_blocked', `Blocked by risk rules: ${detail}`, false, 'security');
