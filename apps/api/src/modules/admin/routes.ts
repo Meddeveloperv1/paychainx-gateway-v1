@@ -26,4 +26,23 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send({ ok: true, detail });
   });
 
+
+  app.get('/admin/payments/search', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const query = request.query as any;
+    const { searchAdminPayments } = await import('./service.js');
+
+    const result = await searchAdminPayments(request.auth!.merchantId, {
+      merchant_reference: query.merchant_reference,
+      processor_transaction_id: query.processor_transaction_id,
+      status: query.status,
+      channel: query.channel,
+      date_from: query.date_from,
+      date_to: query.date_to,
+      limit: query.limit ? Number(query.limit) : undefined,
+      offset: query.offset ? Number(query.offset) : undefined
+    });
+
+    return reply.send({ ok: true, data: result.data, pagination: result.pagination });
+  });
+
 }
