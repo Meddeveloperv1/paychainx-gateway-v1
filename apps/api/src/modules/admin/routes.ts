@@ -13,4 +13,17 @@ export async function adminRoutes(app: FastifyInstance) {
     return createMerchantApiKey(params.merchantId);
   });
 
+
+  app.get('/admin/payments/:id/detail', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const paymentId = (request.params as any).id;
+    const { getAdminPaymentDetail } = await import('./service.js');
+    const detail = await getAdminPaymentDetail(request.auth!.merchantId, paymentId);
+
+    if (!detail) {
+      return reply.code(404).send({ ok: false, error: 'PAYMENT_NOT_FOUND' });
+    }
+
+    return reply.send({ ok: true, detail });
+  });
+
 }
