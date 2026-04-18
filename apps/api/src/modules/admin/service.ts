@@ -283,7 +283,7 @@ export async function disableAdminApiKey(merchantId: string, keyId: string) {
 
 export async function rotateAdminApiKey(merchantId: string, keyId: string) {
   const plain = makeApiKeyPlain();
-  const hash = sha256(plain);
+  const hash = hashApiKey(plain);
 
   const updated = await db.update(apiKeys)
     .set({
