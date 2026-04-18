@@ -42,7 +42,7 @@ export async function listTransactions(merchantId: string, query: TransactionQue
     .limit(limit)
     .offset(offset);
 
-  const results = [];
+  const data = [];
 
   for (const intent of intents) {
     const attempts = await db.select()
@@ -51,29 +51,36 @@ export async function listTransactions(merchantId: string, query: TransactionQue
       .orderBy(desc(paymentAttempts.createdAt))
       .limit(1);
 
-    const attempt = attempts[0];
+    const latest = attempts[0];
 
-    results.push({
+    data.push({
       id: intent.id,
       merchant_reference: intent.merchantReference,
       amount: intent.amount,
       currency: intent.currency,
       status: intent.status,
       processor: intent.processor,
-      processor_transaction_id: attempt?.processorTransactionId ?? null,
-      processor_status: attempt?.processorStatus ?? null,
-      processor_http_status: attempt?.processorHttpStatus ?? null,
-      attempt_status: attempt?.status ?? null,
-      last_error: attempt?.errorMessage ?? null,
-      created_at: intent.createdAt
+      payment_method_type: intent.paymentMethodType,
+      customer_ref: intent.customerRef,
+      customer_email: intent.customerEmail,
+      description: intent.description,
+      latest_attempt_id: latest?.id ?? null,
+      latest_attempt_action: latest?.action ?? null,
+      latest_attempt_status: latest?.status ?? null,
+      processor_transaction_id: latest?.processorTransactionId ?? null,
+      processor_status: latest?.processorStatus ?? null,
+      processor_http_status: latest?.processorHttpStatus ?? null,
+      last_error: latest?.errorMessage ?? null,
+      created_at: intent.createdAt,
+      updated_at: intent.updatedAt
     });
   }
 
-  const next_offset = offset + results.length;
+  const next_offset = offset + data.length;
   const has_more = next_offset < total_count;
 
   return {
-    data: results,
+    data,
     pagination: {
       total_count,
       limit,
@@ -83,35 +90,6 @@ export async function listTransactions(merchantId: string, query: TransactionQue
     }
   };
 }
-
-export function transactionsToCsv(rows: any[]) {
-  const headers = [
-    'id',
-    'merchant_reference',
-    'amount',
-    'currency',
-    'status',
-    'processor',
-    'processor_transaction_id',
-    'processor_status',
-    'processor_http_status',
-    'attempt_status',
-    'last_error',
-    'created_at'
-  ];
-
-  const escape = (v: any) => {
-    if (!v) return '';
-    const s = String(v);
-    return s.includes(',') ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-
-  return [
-    headers.join(','),
-    ...rows.map(r => headers.map(h => escape(r[h])).join(','))
-  ].join('\n');
-}
-
 
 export async function getTransactionSummary(
   merchantId: string,
@@ -123,7 +101,6 @@ export async function getTransactionSummary(
   }
 ) {
   const conditions = buildConditions(merchantId, query ?? {});
-
   const rows = await db.select()
     .from(paymentIntents)
     .where(and(...conditions));
@@ -146,11 +123,7 @@ export async function getTransactionSummary(
   };
 }
 
-
-export async function getTransactionAttempts(
-  merchantId: string,
-  paymentId: string
-) {
+export async function getTransactionAttempts(merchantId: string, paymentId: string) {
   const rows = await db.select()
     .from(paymentAttempts)
     .where(and(
@@ -172,4 +145,102 @@ export async function getTransactionAttempts(
     created_at: row.createdAt,
     updated_at: row.updatedAt
   }));
+}
+
+export async function getDailyBreakdown(merchantId: string) {
+  const intents = await db.select()
+    .from(paymentIntents)
+    .where(eq(paymentIntents.merchantId, merchantId));
+
+  const buckets: Record<string, {
+    date: string;
+    processor: string;
+    total_amount: number;
+    succeeded_amount: number;
+    failed_amount: number;
+    authorized_amount: number;
+    captured_count: number;
+    failed_count: number;
+    authorized_count: number;
+    total_transactions: number;
+  }> = {};
+
+  for (const row of intents) {
+    const date = new Date(row.createdAt).toISOString().slice(0, 10);
+    const key = `${date}__${row.processor}`;
+
+    if (!buckets[key]) {
+      buckets[key] = {
+        date,
+        processor: row.processor,
+        total_amount: 0,
+        succeeded_amount: 0,
+        failed_amount: 0,
+        authorized_amount: 0,
+        captured_count: 0,
+        failed_count: 0,
+        authorized_count: 0,
+        total_transactions: 0
+      };
+    }
+
+    const bucket = buckets[key];
+    bucket.total_amount += row.amount;
+    bucket.total_transactions += 1;
+
+    if (row.status === 'captured') {
+      bucket.succeeded_amount += row.amount;
+      bucket.captured_count += 1;
+    } else if (row.status === 'authorized') {
+      bucket.authorized_amount += row.amount;
+      bucket.authorized_count += 1;
+    } else if (row.status === 'failed') {
+      bucket.failed_amount += row.amount;
+      bucket.failed_count += 1;
+    }
+  }
+
+  return Object.values(buckets).sort((a, b) =>
+    `${b.date}-${b.processor}`.localeCompare(`${a.date}-${a.processor}`)
+  );
+}
+
+export function transactionsToCsv(rows: Array<Record<string, unknown>>) {
+  const headers = [
+    'id',
+    'merchant_reference',
+    'amount',
+    'currency',
+    'status',
+    'processor',
+    'payment_method_type',
+    'customer_ref',
+    'customer_email',
+    'description',
+    'latest_attempt_id',
+    'latest_attempt_action',
+    'latest_attempt_status',
+    'processor_transaction_id',
+    'processor_status',
+    'processor_http_status',
+    'last_error',
+    'created_at',
+    'updated_at'
+  ];
+
+  const escapeCsv = (value: unknown) => {
+    if (value === null || value === undefined) return '';
+    const s = String(value);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  const lines = [
+    headers.join(','),
+    ...rows.map((row) => headers.map((h) => escapeCsv(row[h])).join(','))
+  ];
+
+  return lines.join('\n');
 }
