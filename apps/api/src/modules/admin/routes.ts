@@ -107,4 +107,51 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send({ ok: true, data: result });
   });
 
+
+
+  app.get('/admin/merchant/overview', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { getMerchantOverview } = await import('./service.js');
+    const result = await getMerchantOverview(request.auth!.merchantId);
+
+    if (!result) {
+      return reply.code(404).send({ ok: false, error: 'MERCHANT_NOT_FOUND' });
+    }
+
+    return reply.send({ ok: true, data: result });
+  });
+
+  app.post('/admin/settings/risk', { preHandler: [app.authenticate] }, async (request, reply) => {
+    try {
+      const body = (request.body as any) ?? {};
+      const { updateRiskSettings } = await import('./service.js');
+
+      const result = await updateRiskSettings({
+        blocked_currencies: Array.isArray(body.blocked_currencies) ? body.blocked_currencies : undefined,
+        review_amount_threshold: typeof body.review_amount_threshold === 'number' ? body.review_amount_threshold : undefined,
+        high_amount_threshold: typeof body.high_amount_threshold === 'number' ? body.high_amount_threshold : undefined
+      });
+
+      return reply.send({ ok: true, data: result, message: 'restart paychainx to apply updated settings' });
+    } catch (err) {
+      return reply.code(500).send({ ok: false, error: 'SETTINGS_WRITE_FAILED' });
+    }
+  });
+
+  app.post('/admin/settings/channels', { preHandler: [app.authenticate] }, async (request, reply) => {
+    try {
+      const body = (request.body as any) ?? {};
+      const { updateChannelSettings } = await import('./service.js');
+
+      const result = await updateChannelSettings({
+        moto_enabled: typeof body.moto_enabled === 'boolean' ? body.moto_enabled : undefined,
+        terminal_enabled: typeof body.terminal_enabled === 'boolean' ? body.terminal_enabled : undefined
+      });
+
+      return reply.send({ ok: true, data: result, message: 'restart paychainx to apply updated settings' });
+    } catch (err) {
+      return reply.code(500).send({ ok: false, error: 'SETTINGS_WRITE_FAILED' });
+    }
+  });
+
+
 }
