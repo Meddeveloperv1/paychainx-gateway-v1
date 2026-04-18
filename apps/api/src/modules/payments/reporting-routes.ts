@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { listTransactions, getTransactionSummary, getTransactionAttempts, transactionsToCsv } from './reporting-service.js';
+import { listTransactions, getTransactionSummary, getTransactionAttempts, getDailyBreakdown, transactionsToCsv } from './reporting-service.js';
 
 export async function registerReportingRoutes(app: FastifyInstance) {
 
@@ -36,6 +36,12 @@ export async function registerReportingRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ ok: true, summary });
+  });
+
+  
+  app.get('/v1/transactions/daily', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const data = await getDailyBreakdown(request.auth!.merchantId);
+    return reply.send({ ok: true, data });
   });
 
   app.get('/v1/transactions/export', { preHandler: [app.authenticate] }, async (request, reply) => {
