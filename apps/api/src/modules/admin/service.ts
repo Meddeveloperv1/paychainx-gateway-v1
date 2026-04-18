@@ -133,3 +133,108 @@ export async function getAdminPaymentDetail(merchantId: string, paymentId: strin
     webhook_deliveries: webhookDeliveriesOut
   };
 }
+
+
+export async function searchAdminPayments(
+  merchantId: string,
+  query: {
+    merchant_reference?: string;
+    processor_transaction_id?: string;
+    status?: string;
+    channel?: string;
+    date_from?: string;
+    date_to?: string;
+    limit?: number;
+    offset?: number;
+  }
+) {
+  const limit = Math.min(query.limit ?? 50, 200);
+  const offset = query.offset ?? 0;
+
+  const intentRows = await db.select()
+    .from(paymentIntents)
+    .where(eq(paymentIntents.merchantId, merchantId))
+    .orderBy(desc(paymentIntents.createdAt));
+
+  const filtered = [];
+
+  for (const intent of intentRows) {
+    if (query.merchant_reference && !intent.merchantReference.includes(query.merchant_reference)) {
+      continue;
+    }
+
+    if (query.status && intent.status !== query.status) {
+      continue;
+    }
+
+    if (query.channel && (intent.channel ?? 'api') !== query.channel) {
+      continue;
+    }
+
+    if (query.date_from && new Date(intent.createdAt) < new Date(query.date_from)) {
+      continue;
+    }
+
+    if (query.date_to && new Date(intent.createdAt) > new Date(query.date_to)) {
+      continue;
+    }
+
+    const attempts = await db.select()
+      .from(paymentAttempts)
+      .where(and(
+        eq(paymentAttempts.paymentIntentId, intent.id),
+        eq(paymentAttempts.merchantId, merchantId)
+      ))
+      .orderBy(desc(paymentAttempts.createdAt));
+
+    const latest = attempts[0];
+
+    if (
+      query.processor_transaction_id &&
+      latest?.processorTransactionId !== query.processor_transaction_id
+    ) {
+      continue;
+    }
+
+    filtered.push({
+      id: intent.id,
+      merchant_reference: intent.merchantReference,
+      amount: intent.amount,
+      currency: intent.currency,
+      status: intent.status,
+      processor: intent.processor,
+      channel: intent.channel ?? 'api',
+      terminal_id: intent.terminalId ?? null,
+      device_id: intent.deviceId ?? null,
+      payment_method_type: intent.paymentMethodType,
+      customer_ref: intent.customerRef,
+      customer_email: intent.customerEmail,
+      description: intent.description,
+      latest_attempt_id: latest?.id ?? null,
+      latest_attempt_action: latest?.action ?? null,
+      latest_attempt_status: latest?.status ?? null,
+      processor_transaction_id: latest?.processorTransactionId ?? null,
+      processor_status: latest?.processorStatus ?? null,
+      processor_http_status: latest?.processorHttpStatus ?? null,
+      last_error: latest?.errorMessage ?? null,
+      created_at: intent.createdAt,
+      updated_at: intent.updatedAt
+    });
+  }
+
+  const total_count = filtered.length;
+  const data = filtered.slice(offset, offset + limit);
+  const next_offset = offset + data.length;
+  const has_more = next_offset < total_count;
+
+  return {
+    data,
+    pagination: {
+      total_count,
+      limit,
+      offset,
+      has_more,
+      next_offset: has_more ? next_offset : null
+    }
+  };
+}
