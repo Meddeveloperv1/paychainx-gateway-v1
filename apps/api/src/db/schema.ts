@@ -78,6 +78,9 @@ export const paymentIntents = pgTable('payment_intents', {
   customerRef: text('customer_ref'),
   customerEmail: text('customer_email'),
   description: text('description'),
+  channel: text('channel').notNull().default('api'),
+  terminalId: text('terminal_id'),
+  deviceId: text('device_id'),
   processor: text('processor').notNull().default('cybersource'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
