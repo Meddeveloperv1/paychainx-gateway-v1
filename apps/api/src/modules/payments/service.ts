@@ -17,6 +17,7 @@ import { enqueueProofJob } from '../proofs/queue.js';
 import { enqueueWebhookEvent } from '../webhooks/service.js';
 import { normalizeProcessorFailure } from './processor-error-normalizer.js';
 import { evaluateRisk } from './risk-service.js';
+import { normalizeAvs, normalizeCvv, classifyProcessorFailure } from './risk-enrichment.js';
 import { resolveStoredTokenToPaymentMethod } from '../tokens/service.js';
 
 const processor = new CyberSourceAdapter();
@@ -306,6 +307,24 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     ? null
     : normalizeProcessorFailure(result.errorMessage ?? null);
 
+  const processorFailure = result.success
+    ? null
+    : classifyProcessorFailure(result.errorMessage ?? null);
+
+  const responsePayloadObj: any = result.responsePayload ?? {};
+  const avs = normalizeAvs(
+    responsePayloadObj?.avsCode ??
+    responsePayloadObj?.avs_code ??
+    responsePayloadObj?.processorInformation?.avs?.code ??
+    null
+  );
+  const cvv = normalizeCvv(
+    responsePayloadObj?.cvvCode ??
+    responsePayloadObj?.cvv_code ??
+    responsePayloadObj?.processorInformation?.cardVerification?.resultCode ??
+    null
+  );
+
   return {
     id: intent.id,
     merchant_reference: intent.merchantReference,
@@ -320,6 +339,10 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     error_code: result.success ? null : normalizedFailure?.error_code ?? null,
     retryable: result.success ? null : normalizedFailure?.retryable ?? null,
     error_category: result.success ? null : normalizedFailure?.error_category ?? null,
+    decline_category: result.success ? null : processorFailure?.decline_category ?? null,
+    retry_rule: result.success ? null : processorFailure?.retry.retry_rule ?? null,
+    avs,
+    cvv,
     risk
   };
 }
