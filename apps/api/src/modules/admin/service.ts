@@ -372,3 +372,137 @@ export async function replayAdminWebhookDelivery(merchantId: string, deliveryId:
 
   return updated[0] ?? null;
 }
+
+
+function envBool(value: string | undefined, fallback: boolean) {
+  if (value === undefined) return fallback;
+  return value === 'true';
+}
+
+export async function getMerchantOverview(merchantId: string) {
+  const merchantRows = await db.select()
+    .from(merchants)
+    .where(eq(merchants.id, merchantId))
+    .limit(1);
+
+  const merchant = merchantRows[0];
+  if (!merchant) return null;
+
+  const keyRows = await db.select()
+    .from(apiKeys)
+    .where(eq(apiKeys.merchantId, merchantId));
+
+  const webhookRows = await db.select()
+    .from(webhookEndpoints)
+    .where(eq(webhookEndpoints.merchantId, merchantId));
+
+  return {
+    merchant: {
+      id: merchant.id,
+      name: merchant.name,
+      status: merchant.status,
+      created_at: merchant.createdAt,
+      updated_at: merchant.updatedAt
+    },
+    api_keys: {
+      total: keyRows.length,
+      active: keyRows.filter(k => k.status === 'active').length,
+      disabled: keyRows.filter(k => k.status === 'disabled').length
+    },
+    webhooks: {
+      total: webhookRows.length,
+      enabled: webhookRows.filter(w => w.isEnabled).length,
+      signed_enabled: webhookRows.filter(w => w.isEnabled && !!w.signingSecret).length
+    },
+    risk_settings: {
+      blocked_currencies: (process.env.RISK_BLOCKED_CURRENCIES || '')
+        .split(',')
+        .map(v => v.trim())
+        .filter(Boolean),
+      review_amount_threshold: Number(process.env.RISK_REVIEW_AMOUNT_THRESHOLD || '100000'),
+      high_amount_threshold: Number(process.env.RISK_HIGH_AMOUNT_THRESHOLD || '250000')
+    },
+    channel_settings: {
+      moto_enabled: envBool(process.env.CHANNEL_MOTO_ENABLED, true),
+      terminal_enabled: envBool(process.env.CHANNEL_TERMINAL_ENABLED, true)
+    }
+  };
+}
+
+export async function updateRiskSettings(input: {
+  blocked_currencies?: string[];
+  review_amount_threshold?: number;
+  high_amount_threshold?: number;
+}) {
+  const envPath = '.env';
+  try {
+    let text = require('fs').readFileSync(envPath, 'utf8');
+
+    const setOrAppend = (key: string, value: string) => {
+      const re = new RegExp(`^${key}=.*$`, 'm');
+      if (re.test(text)) {
+        text = text.replace(re, `${key}=${value}`);
+      } else {
+        text += `\n${key}=${value}`;
+      }
+    };
+
+    if (input.blocked_currencies) {
+      setOrAppend('RISK_BLOCKED_CURRENCIES', input.blocked_currencies.join(','));
+    }
+
+    if (typeof input.review_amount_threshold === 'number') {
+      setOrAppend('RISK_REVIEW_AMOUNT_THRESHOLD', String(input.review_amount_threshold));
+    }
+
+    if (typeof input.high_amount_threshold === 'number') {
+      setOrAppend('RISK_HIGH_AMOUNT_THRESHOLD', String(input.high_amount_threshold));
+    }
+
+    require('fs').writeFileSync(envPath, text);
+
+    return {
+      blocked_currencies: input.blocked_currencies ?? null,
+      review_amount_threshold: input.review_amount_threshold ?? null,
+      high_amount_threshold: input.high_amount_threshold ?? null
+    };
+  } catch (err) {
+    throw new Error('SETTINGS_WRITE_FAILED');
+  }
+}
+
+export async function updateChannelSettings(input: {
+  moto_enabled?: boolean;
+  terminal_enabled?: boolean;
+}) {
+  const envPath = '.env';
+  try {
+    let text = require('fs').readFileSync(envPath, 'utf8');
+
+    const setOrAppend = (key: string, value: string) => {
+      const re = new RegExp(`^${key}=.*$`, 'm');
+      if (re.test(text)) {
+        text = text.replace(re, `${key}=${value}`);
+      } else {
+        text += `\n${key}=${value}`;
+      }
+    };
+
+    if (typeof input.moto_enabled === 'boolean') {
+      setOrAppend('CHANNEL_MOTO_ENABLED', input.moto_enabled ? 'true' : 'false');
+    }
+
+    if (typeof input.terminal_enabled === 'boolean') {
+      setOrAppend('CHANNEL_TERMINAL_ENABLED', input.terminal_enabled ? 'true' : 'false');
+    }
+
+    require('fs').writeFileSync(envPath, text);
+
+    return {
+      moto_enabled: input.moto_enabled ?? null,
+      terminal_enabled: input.terminal_enabled ?? null
+    };
+  } catch (err) {
+    throw new Error('SETTINGS_WRITE_FAILED');
+  }
+}
