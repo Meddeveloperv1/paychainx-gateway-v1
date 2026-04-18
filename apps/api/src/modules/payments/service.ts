@@ -17,6 +17,7 @@ import { enqueueProofJob } from '../proofs/queue.js';
 import { enqueueWebhookEvent } from '../webhooks/service.js';
 import { normalizeProcessorFailure } from './processor-error-normalizer.js';
 import { evaluateRisk } from './risk-service.js';
+import { resolveChannelRouting } from './channel-routing.js';
 import { normalizeAvs, normalizeCvv, classifyProcessorFailure } from './risk-enrichment.js';
 import { resolveStoredTokenToPaymentMethod } from '../tokens/service.js';
 
@@ -57,6 +58,13 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
   if (!normalizedPaymentMethod) {
     throw new Error('payment_method or payment_source required');
   }
+
+  const channelRouting = resolveChannelRouting({
+    channel: (input as any).channel,
+    terminal_id: (input as any).terminal_id,
+    device_id: (input as any).device_id
+  });
+
 
   const risk = evaluateRisk({
     amount: input.amount,
@@ -126,6 +134,9 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     customerRef: input.customer?.customer_ref,
     customerEmail: input.customer?.email,
     description: input.description,
+    channel: channelRouting.channel,
+    terminalId: channelRouting.terminal_id,
+    deviceId: channelRouting.device_id,
     processor: processorName
   }).returning();
 
@@ -343,7 +354,10 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     retry_rule: result.success ? null : processorFailure?.retry.retry_rule ?? null,
     avs,
     cvv,
-    risk
+    risk,
+    channel: channelRouting.channel,
+    terminal_id: channelRouting.terminal_id,
+    device_id: channelRouting.device_id
   };
 }
 
