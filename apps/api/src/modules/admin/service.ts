@@ -506,3 +506,29 @@ export async function updateChannelSettings(input: {
     throw new Error('SETTINGS_WRITE_FAILED');
   }
 }
+
+
+export async function createAdminApiKey(merchantId: string, label?: string) {
+  const plain = generateApiKey('pkx');
+  const hash = hashApiKey(plain);
+
+  const inserted = await db.insert(apiKeys)
+    .values({
+      merchantId,
+      keyHash: hash,
+      label: label ?? 'admin-created-key',
+      status: 'active'
+    })
+    .returning();
+
+  const row = inserted[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    label: row.label,
+    status: row.status,
+    created_at: row.createdAt,
+    api_key: plain
+  };
+}

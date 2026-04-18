@@ -57,6 +57,12 @@ export default fp(async (app) => {
       });
     }
 
+    await app.db
+      .update(apiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(apiKeys.id, record.apiKeyId));
+
+
     request.auth = {
       merchantId: record.merchantId,
       merchantName: record.merchantName,
