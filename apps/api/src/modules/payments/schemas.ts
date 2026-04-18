@@ -22,7 +22,10 @@ export const saleRequestSchema = z.object({
     customer_ref: z.string().optional(),
     email: z.string().email().optional()
   }).optional(),
-  description: z.string().optional()
+  description: z.string().optional(),
+  channel: z.enum(['api', 'ecommerce', 'moto', 'terminal']).optional(),
+  terminal_id: z.string().optional(),
+  device_id: z.string().optional()
 });
 
 export const captureRequestSchema = z.object({
