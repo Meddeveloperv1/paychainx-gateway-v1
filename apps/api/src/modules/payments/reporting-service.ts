@@ -14,29 +14,15 @@ type TransactionQuery = {
 function buildConditions(merchantId: string, query: TransactionQuery) {
   const conditions: any[] = [eq(paymentIntents.merchantId, merchantId)];
 
-  if (query.status) {
-    conditions.push(eq(paymentIntents.status, query.status));
-  }
-
-  if (query.processor) {
-    conditions.push(eq(paymentIntents.processor, query.processor));
-  }
-
-  if (query.date_from) {
-    conditions.push(gte(paymentIntents.createdAt, new Date(query.date_from)));
-  }
-
-  if (query.date_to) {
-    conditions.push(lte(paymentIntents.createdAt, new Date(query.date_to)));
-  }
+  if (query.status) conditions.push(eq(paymentIntents.status, query.status));
+  if (query.processor) conditions.push(eq(paymentIntents.processor, query.processor));
+  if (query.date_from) conditions.push(gte(paymentIntents.createdAt, new Date(query.date_from)));
+  if (query.date_to) conditions.push(lte(paymentIntents.createdAt, new Date(query.date_to)));
 
   return conditions;
 }
 
-export async function listTransactions(
-  merchantId: string,
-  query: TransactionQuery
-) {
+export async function listTransactions(merchantId: string, query: TransactionQuery) {
   const limit = Math.min(query.limit ?? 50, 1000);
   const offset = query.offset ?? 0;
 
@@ -49,31 +35,45 @@ export async function listTransactions(
 
   const total_count = Number(totalRows[0]?.total ?? 0);
 
-  const rows = await db.select()
+  const intents = await db.select()
     .from(paymentIntents)
     .where(and(...conditions))
     .orderBy(desc(paymentIntents.createdAt))
     .limit(limit)
     .offset(offset);
 
-  const data = rows.map((row) => ({
-    id: row.id,
-    merchant_reference: row.merchantReference,
-    amount: row.amount,
-    currency: row.currency,
-    status: row.status,
-    processor: row.processor,
-    customer_ref: row.customerRef,
-    customer_email: row.customerEmail,
-    description: row.description,
-    created_at: row.createdAt
-  }));
+  const results = [];
 
-  const next_offset = offset + data.length;
+  for (const intent of intents) {
+    const attempts = await db.select()
+      .from(paymentAttempts)
+      .where(eq(paymentAttempts.paymentIntentId, intent.id))
+      .orderBy(desc(paymentAttempts.createdAt))
+      .limit(1);
+
+    const attempt = attempts[0];
+
+    results.push({
+      id: intent.id,
+      merchant_reference: intent.merchantReference,
+      amount: intent.amount,
+      currency: intent.currency,
+      status: intent.status,
+      processor: intent.processor,
+      processor_transaction_id: attempt?.processorTransactionId ?? null,
+      processor_status: attempt?.processorStatus ?? null,
+      processor_http_status: attempt?.processorHttpStatus ?? null,
+      attempt_status: attempt?.status ?? null,
+      last_error: attempt?.errorMessage ?? null,
+      created_at: intent.createdAt
+    });
+  }
+
+  const next_offset = offset + results.length;
   const has_more = next_offset < total_count;
 
   return {
-    data,
+    data: results,
     pagination: {
       total_count,
       limit,
@@ -83,6 +83,35 @@ export async function listTransactions(
     }
   };
 }
+
+export function transactionsToCsv(rows: any[]) {
+  const headers = [
+    'id',
+    'merchant_reference',
+    'amount',
+    'currency',
+    'status',
+    'processor',
+    'processor_transaction_id',
+    'processor_status',
+    'processor_http_status',
+    'attempt_status',
+    'last_error',
+    'created_at'
+  ];
+
+  const escape = (v: any) => {
+    if (!v) return '';
+    const s = String(v);
+    return s.includes(',') ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  return [
+    headers.join(','),
+    ...rows.map(r => headers.map(h => escape(r[h])).join(','))
+  ].join('\n');
+}
+
 
 export async function getTransactionSummary(
   merchantId: string,
@@ -115,37 +144,6 @@ export async function getTransactionSummary(
     failed_amount: failed,
     total_transactions: rows.length
   };
-}
-
-export function transactionsToCsv(rows: Array<Record<string, unknown>>) {
-  const headers = [
-    'id',
-    'merchant_reference',
-    'amount',
-    'currency',
-    'status',
-    'processor',
-    'customer_ref',
-    'customer_email',
-    'description',
-    'created_at'
-  ];
-
-  const escapeCsv = (value: unknown) => {
-    if (value === null || value === undefined) return '';
-    const s = String(value);
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
-  };
-
-  const lines = [
-    headers.join(','),
-    ...rows.map((row) => headers.map((h) => escapeCsv(row[h])).join(','))
-  ];
-
-  return lines.join('\n');
 }
 
 
