@@ -8,6 +8,7 @@ import timingPlugin from './plugins/timing.js';
 import { registerSystemRoutes } from './modules/system/routes.js';
 import { registerIntegrationRoutes } from './modules/system/integration-routes.js';
 import { registerPropelrRoutes } from './modules/integrations/propelr-routes.js';
+import { registerPropelrContractRoutes } from './modules/integrations/propelr-contract-routes.js';
 import { registerProofRoutes } from './modules/proofs/routes.js';
 import { registerMerchantCapabilityRoutes } from './modules/payments/capability-routes.js';
 import { registerWebhookRoutes } from './modules/webhooks/routes.js';
@@ -57,6 +58,7 @@ export async function buildApp() {
   await registerSystemRoutes(app);
   await registerIntegrationRoutes(app);
   await registerPropelrRoutes(app);
+  await registerPropelrContractRoutes(app);
   await registerProofRoutes(app);
   await registerMerchantCapabilityRoutes(app);
   await registerWebhookRoutes(app);
