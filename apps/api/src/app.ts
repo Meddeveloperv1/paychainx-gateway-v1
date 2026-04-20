@@ -6,6 +6,7 @@ import authPlugin from './plugins/auth.js';
 import idempotencyPlugin from './plugins/idempotency.js';
 import timingPlugin from './plugins/timing.js';
 import { registerSystemRoutes } from './modules/system/routes.js';
+import { registerIntegrationRoutes } from './modules/system/integration-routes.js';
 import { registerProofRoutes } from './modules/proofs/routes.js';
 import { registerMerchantCapabilityRoutes } from './modules/payments/capability-routes.js';
 import { registerWebhookRoutes } from './modules/webhooks/routes.js';
@@ -53,6 +54,7 @@ export async function buildApp() {
   await app.register(timingPlugin);
   await app.register(idempotencyPlugin);
   await registerSystemRoutes(app);
+  await registerIntegrationRoutes(app);
   await registerProofRoutes(app);
   await registerMerchantCapabilityRoutes(app);
   await registerWebhookRoutes(app);
