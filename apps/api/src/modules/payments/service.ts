@@ -15,6 +15,7 @@ import { submitPQProofRequest, submitPQProofStrict } from '../pq/sidecar-client.
 import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
 import { enqueueProofJob } from '../proofs/queue.js';
 import { enqueueWebhookEvent } from '../webhooks/service.js';
+import { archiveProofToSpaces } from '../proofs/archive.js';
 import { normalizeProcessorFailure } from './processor-error-normalizer.js';
 import { evaluateRisk } from './risk-service.js';
 import { resolveChannelRouting } from './channel-routing.js';
@@ -343,6 +344,27 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
 
   const proof = proofRows[0] ?? null;
 
+  if (proof) {
+    queueMicrotask(() => {
+      archiveProofToSpaces({
+        proofId: proof.proofId,
+        paymentAttemptId: attempt.id,
+        merchantReference: intent.merchantReference ?? null,
+        proofHash: proof.proofHash,
+        proofStatus: proof.proofStatus,
+        createdAt: proof.createdAt,
+        processor: processorName,
+        processorTransactionId: result.processorTransactionId ?? null
+      }).catch((err) => {
+        console.error('spaces_proof_archive_failed', {
+          proof_id: proof.proofId,
+          payment_attempt_id: attempt.id,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      });
+    });
+  }
+
   return {
     id: intent.id,
     merchant_reference: intent.merchantReference,
@@ -369,7 +391,8 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
       proof_id: proof.proofId,
       proof_hash: proof.proofHash,
       status: proof.proofStatus,
-      created_at: proof.createdAt
+      created_at: proof.createdAt,
+      archive_pending: true
     } : null
   };
 }
