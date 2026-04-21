@@ -16,6 +16,7 @@ import { enqueueAuditEvent, setPQProofStatus } from '../audit/audit-queue.js';
 import { enqueueProofJob } from '../proofs/queue.js';
 import { enqueueWebhookEvent } from '../webhooks/service.js';
 import { archiveProofToSpaces } from '../proofs/archive.js';
+import { quoteGatewayFee } from '../fees/engine.js';
 import { normalizeProcessorFailure } from './processor-error-normalizer.js';
 import { evaluateRisk } from './risk-service.js';
 import { resolveChannelRouting } from './channel-routing.js';
@@ -104,6 +105,8 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
   });
 
   const processorName = selectedProcessor === 'bank_rail' ? 'bank_rail' : 'cybersource';
+
+  const feeQuote = quoteGatewayFee(input.amount);
 
   let resolvedCredentials = getCachedProcessorCredentials(auth.merchantId, processorName);
   if (!resolvedCredentials) {
@@ -352,7 +355,7 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
         merchantReference: intent.merchantReference ?? null,
         proofHash: proof.proofHash,
         proofStatus: proof.proofStatus,
-        createdAt: proof.createdAt,
+        createdAt: proof.createdAt ?? new Date(),
         processor: processorName,
         processorTransactionId: result.processorTransactionId ?? null
       }).catch((err) => {
@@ -393,7 +396,8 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
       status: proof.proofStatus,
       created_at: proof.createdAt,
       archive_pending: true
-    } : null
+    } : null,
+    fees: feeQuote
   };
 }
 
