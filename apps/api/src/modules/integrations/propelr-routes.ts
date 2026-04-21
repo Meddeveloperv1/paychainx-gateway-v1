@@ -44,7 +44,14 @@ export async function registerPropelrRoutes(app: FastifyInstance) {
         customer_ref: body.customer.customer_ref,
         email: body.customer.email
       } : undefined,
-      description: body.description
+      description: body.description,
+      metadata: {
+        partner: 'propelr',
+        store_id: body.store_id ?? null,
+        lane_id: body.lane_id ?? null,
+        operator_id: body.operator_id ?? null,
+        session_id: body.session_id ?? null
+      }
     };
 
     const result = await createSale(request.auth!, mapped as any);
@@ -55,7 +62,11 @@ export async function registerPropelrRoutes(app: FastifyInstance) {
       mapped_request: {
         reference: body.reference,
         terminal_id: body.terminal_id,
-        device_id: body.device_id
+        device_id: body.device_id,
+        store_id: body.store_id ?? null,
+        lane_id: body.lane_id ?? null,
+        operator_id: body.operator_id ?? null,
+        session_id: body.session_id ?? null
       },
       result
     });

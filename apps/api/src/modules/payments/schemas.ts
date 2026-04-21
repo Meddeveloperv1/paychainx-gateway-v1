@@ -25,7 +25,8 @@ export const saleRequestSchema = z.object({
   description: z.string().optional(),
   channel: z.enum(['api', 'ecommerce', 'moto', 'terminal']).optional(),
   terminal_id: z.string().optional(),
-  device_id: z.string().optional()
+  device_id: z.string().optional(),
+  metadata: z.record(z.any()).optional()
 });
 
 export const captureRequestSchema = z.object({
