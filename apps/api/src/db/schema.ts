@@ -12,7 +12,6 @@ import {
 } from 'drizzle-orm/pg-core';
 
   uniqueIndex
-} 
 
 export const merchants = pgTable('merchants', {
   id: uuid('id').defaultRandom().primaryKey(),
