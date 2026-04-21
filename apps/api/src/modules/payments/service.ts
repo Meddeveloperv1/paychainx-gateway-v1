@@ -336,6 +336,13 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     null
   );
 
+  const proofRows = await db.select()
+    .from(proofVault)
+    .where(eq(proofVault.paymentAttemptId, attempt.id))
+    .limit(1);
+
+  const proof = proofRows[0] ?? null;
+
   return {
     id: intent.id,
     merchant_reference: intent.merchantReference,
@@ -357,7 +364,13 @@ export async function createSale(auth: NonNullable<import('fastify').FastifyRequ
     risk,
     channel: channelRouting.channel,
     terminal_id: channelRouting.terminal_id,
-    device_id: channelRouting.device_id
+    device_id: channelRouting.device_id,
+    pq_proof: proof ? {
+      proof_id: proof.proofId,
+      proof_hash: proof.proofHash,
+      status: proof.proofStatus,
+      created_at: proof.createdAt
+    } : null
   };
 }
 
