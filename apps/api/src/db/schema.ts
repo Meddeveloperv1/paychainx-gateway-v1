@@ -7,8 +7,12 @@ import {
   boolean,
   bigint,
   jsonb,
-  uniqueIndex
+  uniqueIndex,
+  varchar
 } from 'drizzle-orm/pg-core';
+
+  uniqueIndex
+} 
 
 export const merchants = pgTable('merchants', {
   id: uuid('id').defaultRandom().primaryKey(),
