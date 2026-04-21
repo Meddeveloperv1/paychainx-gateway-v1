@@ -237,3 +237,96 @@ export const paymentTokens = pgTable('payment_tokens', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   revokedAt: timestamp('revoked_at', { withTimezone: true })
 });
+
+export const pqKeys = pgTable('pq_keys', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  keyId: varchar('key_id', { length: 128 }).notNull(),
+  keyVersion: integer('key_version').notNull(),
+  algorithm: varchar('algorithm', { length: 64 }).notNull(),
+  status: varchar('status', { length: 32 }).notNull().default('active'),
+  publicKey: text('public_key').notNull(),
+  privateKeyRef: text('private_key_ref'),
+  policyVersion: varchar('policy_version', { length: 64 }).notNull(),
+  verificationAllowed: boolean('verification_allowed').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  retiredAt: timestamp('retired_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true })
+});
+
+export const pqPolicies = pgTable('pq_policies', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  version: varchar('version', { length: 64 }).notNull().unique(),
+  hashSuite: varchar('hash_suite', { length: 64 }).notNull(),
+  pqSignatureSuite: varchar('pq_signature_suite', { length: 64 }).notNull(),
+  canonicalizationVersion: varchar('canonicalization_version', { length: 64 }).notNull(),
+  retentionPolicyId: varchar('retention_policy_id', { length: 128 }).notNull(),
+  verificationRequireArchiveSeal: boolean('verification_require_archive_seal').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+});
+
+export const pqArchiveReceipts = pgTable('pq_archive_receipts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  receiptId: varchar('receipt_id', { length: 128 }).notNull().unique(),
+  proofId: varchar('proof_id', { length: 128 }).notNull(),
+  archiveStatus: varchar('archive_status', { length: 32 }).notNull(),
+  archiveTimestamp: timestamp('archive_timestamp', { withTimezone: true }),
+  retentionPolicyId: varchar('retention_policy_id', { length: 128 }).notNull(),
+  integrityChainRef: text('integrity_chain_ref'),
+  merkleRoot: text('merkle_root'),
+  storageUri: text('storage_uri'),
+  lastArchiveError: text('last_archive_error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
+
+export const pqProofs = pgTable('pq_proofs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  proofId: varchar('proof_id', { length: 128 }).notNull().unique(),
+  proofType: varchar('proof_type', { length: 128 }).notNull(),
+  proofVersion: varchar('proof_version', { length: 32 }).notNull(),
+  transactionId: varchar('transaction_id', { length: 128 }),
+  paymentAttemptId: uuid('payment_attempt_id').notNull(),
+  merchantReference: varchar('merchant_reference', { length: 255 }),
+  merchantId: uuid('merchant_id'),
+  terminalId: varchar('terminal_id', { length: 128 }),
+  deviceId: varchar('device_id', { length: 128 }),
+  channel: varchar('channel', { length: 32 }),
+  processor: varchar('processor', { length: 64 }).notNull(),
+  processorTransactionId: varchar('processor_transaction_id', { length: 128 }),
+  amount: integer('amount').notNull(),
+  currency: varchar('currency', { length: 8 }).notNull(),
+  status: varchar('status', { length: 64 }).notNull(),
+  riskDecision: varchar('risk_decision', { length: 32 }),
+  riskScore: integer('risk_score'),
+  avsCode: varchar('avs_code', { length: 16 }),
+  cvvCode: varchar('cvv_code', { length: 16 }),
+  eventTime: timestamp('event_time', { withTimezone: true }).notNull(),
+  hashSuite: varchar('hash_suite', { length: 64 }).notNull(),
+  pqSignatureSuite: varchar('pq_signature_suite', { length: 64 }).notNull(),
+  signingKeyId: varchar('signing_key_id', { length: 128 }).notNull(),
+  signingKeyVersion: integer('signing_key_version').notNull(),
+  cryptoPolicyVersion: varchar('crypto_policy_version', { length: 64 }).notNull(),
+  canonicalizationVersion: varchar('canonicalization_version', { length: 64 }).notNull(),
+  canonicalPayload: jsonb('canonical_payload').notNull(),
+  canonicalPayloadString: text('canonical_payload_string').notNull(),
+  proofHash: text('proof_hash').notNull(),
+  signature: text('signature').notNull(),
+  archiveReceiptId: varchar('archive_receipt_id', { length: 128 }),
+  archiveStatus: varchar('archive_status', { length: 32 }).notNull().default('submitted'),
+  archiveTimestamp: timestamp('archive_timestamp', { withTimezone: true }),
+  retentionPolicyId: varchar('retention_policy_id', { length: 128 }).notNull(),
+  integrityChainRef: text('integrity_chain_ref'),
+  merkleRoot: text('merkle_root'),
+  lastArchiveError: text('last_archive_error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+});
+
+export const pqVerificationLogs = pgTable('pq_verification_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  proofId: varchar('proof_id', { length: 128 }).notNull(),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+  verifierVersion: varchar('verifier_version', { length: 32 }).notNull().default('v1'),
+  passed: boolean('passed').notNull(),
+  reasonCode: varchar('reason_code', { length: 128 }).notNull(),
+  details: jsonb('details').notNull().default({})
+});
